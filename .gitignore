@@ -14,4 +14,4 @@ build
 *.wal
 *.ipynb
 *.env
-#static/conf
+static/conf
