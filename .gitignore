@@ -1,0 +1,15 @@
+**/uploads
+**/__pycache__
+__pycache__
+*.db-wal
+*.db-shm
+*.xls*
+*.db
+*.sqlite
+!ADMIN_DB.db
+dist
+build
+*.duckdb
+!ADMIN_DB.duckdb
+*.wal
+*.ipynb

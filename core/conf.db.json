@@ -1,0 +1,80 @@
+[
+    {
+        "type": "db",
+        "params": {
+            "host": "127.0.0.1",
+            "drivername": "mysql+pymysql",
+            "port": 3306,
+            "username": "@ENV.MYSQL_USER",
+            "password": "@ENV.MYSQL_PASS",
+            "database": "SA_v21"
+        },
+        "query":"SELECT * FROM `TBLContrato` WHERE `DataContrato` < '{YYYY-MM-DD}'"
+    },
+    {
+        "type": "db",
+        "params": {
+            "host": "172.21.11.1",
+            "drivername": "{iSeries Access ODBC Driver}",
+            "password": "@ENV.BNK_PASS",
+            "username": "@ENV.USERNAME",
+            "odbc_url": "Driver={drivername};System={host};Uid={username};Pwd={password}",
+            "odbc_dbapi": "db2"
+        },
+        "query":"SELECT * FROM \"APOSCR\" WHERE \"APDATA\" = '{YYYYMMDD}'"
+    },
+    {
+        "type": "odbc-csv-duckdb",
+        "params": {
+            "host": "172.21.11.1",
+            "drivername": "{iSeries Access ODBC Driver}",
+            "password": "@ENV.DB2_PASS",
+            "username": "@ENV.USERNAME",
+            "odbc_url": "Driver={drivername};System={host};Uid={username};Pwd={password}",
+            "odbc_dbapi": "db2"
+        },
+        "query":"SELECT * FROM \"APOSCR\" WHERE \"APDATA\" = '{YYYYMMDD}'",
+        "duckdb": {
+            "valid": [
+                {
+                    "sql": "SELECT DISTINCT DATE_FIELD FROM '<filename>' WHERE DATE_FIELD = '{YYYYMMDD}' LIMIT 10",
+                    "rule": "throw_if_not_empty",
+                    "msg": "The DATE_FIELD in the '<filename>' is not YYYYMMDD!"
+                },
+                {
+                    "sql": "SELECT DATE_FIELD FROM TBL WHERE DATE_FIELD = '{YYYYMMDD}' LIMIT 10",
+                    "rule": "throw_if_empty",
+                    "msg": "The date YYYYMMDD already exists, check the file or clean the data first!"
+                }
+            ],
+            "sql": "CREATE OR REPLACE TABLE TBL AS SELECT * FROM '<filename>'",
+            "_sql": "INSERT INTO TBL AS SELECT * FROM db_scaner('<filename>', 'table_name')",
+            "__sql": "CREATE OR REPLACE TABLE TBL AS SELECT * FROM db_scan('<conn_string>', 'schema', 'table');"
+        }
+    },
+    {
+        "type": "duckdb",
+        "duckdb": {
+            "extentions": ["sqlite", "postgres", "httpfs"],
+            "valid": [
+                {
+                    "sql": "SELECT DISTINCT DATE_FIELD FROM '<filename>' WHERE DATE_FIELD = '{YYYYMMDD}' LIMIT 10",
+                    "rule": "throw_if_not_empty",
+                    "msg": "The DATE_FIELD in the '<filename>' is not YYYYMMDD!"
+                },
+                {
+                    "sql": "SELECT DATE_FIELD FROM TBL WHERE DATE_FIELD = '{YYYYMMDD}' LIMIT 10",
+                    "rule": "throw_if_empty",
+                    "msg": "The date YYYYMMDD already exists, check the file or clean the data first!"
+                }
+            ],
+            "pragmas_config_sql": [
+                "SET s3_region='auto'",
+                "..."
+            ],
+            "sql": "CREATE OR REPLACE TABLE TBL AS SELECT * FROM '<filename>'",
+            "_sql": "INSERT INTO TBL AS SELECT * FROM db_scaner('<filename>', 'table_name')",
+            "__sql": "CREATE OR REPLACE TABLE TBL AS SELECT * FROM db_scan('<conn_string>', 'schema', 'table');"
+        }
+    }
+]

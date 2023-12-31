@@ -1,0 +1,51 @@
+PORT: 8080
+STATIC: static
+ASSETS: static/assets
+UPLOAD: static/uploads
+SECRET_KEY: 92086f0f1e255c334447d8e1760ef0a2f0afce5c377df2d7651f9520f3dcd1e7 #openssl rand -hex 32
+ALGORITHM: HS256
+LANG: en
+FALLBACK_LANG: en
+ACCESS_TOKEN_EXPIRE_MINUTES: 11520 #60 * 24 * 8
+DATABASE:
+    drivername: sqlite
+    database: ADMIN_DB
+SQLITE_CACHE_SIZE: -2097152 # -2 * 1024 * 1024
+SQLITE_BUSY_TIMEOUT: 60000 # 60 * 1000
+DATABASE-pg:
+    drivername: postgresql + psycopg2
+    hostname: 127.0.0.1
+    port: 3606
+    username: root
+    password: 1234
+    database: ADMIN_DB
+DB_LOG: false
+REQUEST_LOG:
+    ACTIONS_TO_IGNORE:
+        - chk_token
+        - chk_session
+        - chkToken
+        - chkSession
+        - read
+        - r
+        - extrat__
+    DO_NOT_STORE_DATA: true
+    SKIP_SPECIFIC_FIELDS--:
+        - req_data
+        - res_data
+        - new_data
+BROADCAST_CHANGES:
+    ACTIONS: 
+        - create_update
+        - create
+        - update
+        - delete
+        - c
+        - u
+        - d
+DO_NOT_VERIFY_AUTH_TOKEN:
+    - login/login
+    - login/index
+CORE_TABLES: ["lang", "role", "user", "user_role", "app", "menu", "table", "menu_table", "role_app", "role_app_menu", "role_app_menu_table", "user_log", "custom_table", "custom_form", "column_level_access", "row_level_access", "translate_table", "translate_table_field"]
+ALLOW_CLI_RUN_QUERIES: true
+

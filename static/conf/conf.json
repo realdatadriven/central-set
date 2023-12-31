@@ -1,0 +1,26 @@
+{
+    "app_name": "SVELTE_APP",
+    "company_name": "Banco Intlântico",
+    "company_website": "http://www.bi.cv/",
+    "url": "conf/conf.json",
+    "api": "http://localhost:8080/api",
+    "ws_api": "ws://localhost:8080/ws",
+    "secret_key": "o1KwptgRuXtHd4LsvBu63DDh",
+    "app": "DGR | Base",
+    "icon":"favicon.ico",
+    "logo":"img/logo-dark.png",
+    "lang": "en",
+    "year": 2018,
+    "suported_langs": [
+        {"lang": "en", "desc": "English",   "flag": "img/flags/en.png"},        
+        {"lang": "pt", "desc": "Português", "flag": "img/flags/pt.svg"}
+    ],
+    "datetime_format": "DD/MM/YYYY HH:mm",
+    "date_format": "DD/MM/YYYY",
+    "date_format_sm": "DD/MM/YY",
+    "form_not_update": ["user_id", "user", "password", "pass", "excluded", "created_at", "updated_at"],
+    "rows_per_pag_opts": [5, 10, 15, 20, 25, 50, 100, 500, { "label": "all", "value": -1 }],
+    "limit": 10,
+    "subform_limit": 5,
+    "chk_token_interval": 60000
+}
