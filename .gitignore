@@ -13,4 +13,4 @@ build
 !ADMIN_DB.duckdb
 *.wal
 *.ipynb
-*.env
+#*.env
