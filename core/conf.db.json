@@ -16,12 +16,12 @@
         "params": {
             "host": "172.21.11.1",
             "drivername": "{iSeries Access ODBC Driver}",
-            "password": "@ENV.BNK_PASS",
+            "password": "@ENV.PASS",
             "username": "@ENV.USERNAME",
             "odbc_url": "Driver={drivername};System={host};Uid={username};Pwd={password}",
             "odbc_dbapi": "db2"
         },
-        "query":"SELECT * FROM \"APOSCR\" WHERE \"APDATA\" = '{YYYYMMDD}'"
+        "query":"SELECT * FROM \"TABLE\" WHERE \"DATE\" = '{YYYYMMDD}'"
     },
     {
         "type": "odbc-csv-duckdb",
@@ -33,7 +33,7 @@
             "odbc_url": "Driver={drivername};System={host};Uid={username};Pwd={password}",
             "odbc_dbapi": "db2"
         },
-        "query":"SELECT * FROM \"APOSCR\" WHERE \"APDATA\" = '{YYYYMMDD}'",
+        "query":"SELECT * FROM \"TABLE\" WHERE \"DATE\" = '{YYYYMMDD}'",
         "duckdb": {
             "valid": [
                 {
