@@ -40,6 +40,7 @@ beautifulsoup4 = "*"
 fastparquet = "*"
 #sharepy = "*"
 fsspec = "*"
+py-rust-odbc-csv = "*"
 
 [dev-packages]
 

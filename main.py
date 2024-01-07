@@ -346,7 +346,7 @@ async def dyn_api(
                 if verify.get('success') is False:
                     return verify
                 res = await login.alter_pass()
-            elif _method in ['chk_token', 'chk_session', 'chkToken', 'chkSession']:
+            elif _method in ['chk_token', 'chk_session', 'chkToken', 'chkSession', 'verify_token', 'verifyToken']:
                 return verify
             else:
                 res = {
