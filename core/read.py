@@ -52,7 +52,7 @@ class Read:
             # ROLE TABLE ACCESS
             permissions = self.params.get('permissions')
             if user.get('role_id') != 1:
-                # print(permissions)    
+                # print(permissions)
                 crud_aciton = 'read'
                 _chk = self.check_table_access(_table, permissions, crud_aciton)
                 if not _chk:
@@ -60,6 +60,7 @@ class Read:
                 elif _chk.get('success') is False:
                     return _chk
             engine = self.db.get_engine()
+            #print(engine.url, self.params.get('app'))
             inspector = self.db.get_inspector(engine)
             metadata = self.db.get_metadata(engine)
             tbl = Table(_table, metadata, autoload_with = engine)
