@@ -46,10 +46,10 @@ class DB:
             else:
                 db_conf['database'] = self.params['app'].get('db')
         elif self.params.get('app', {}).get('database'):
-                if isinstance(self.params['app'].get('database'), dict):
-                    db_conf = self.params['app'].get('database')
-                else:
-                    db_conf['database'] = self.params['app'].get('database')
+            if isinstance(self.params['app'].get('database'), dict):
+                db_conf = self.params['app'].get('database')
+            else:
+                db_conf['database'] = self.params['app'].get('database')
         if isinstance(db_conf, dict):
             _patt = re.compile(r'@ENV\..+')
             for _key in db_conf:
