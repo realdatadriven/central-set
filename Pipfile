@@ -41,6 +41,8 @@ fastparquet = "*"
 #sharepy = "*"
 fsspec = "*"
 py-rust-odbc-csv = "*"
+icalevents = "*"
+ics = "*"
 
 [dev-packages]
 

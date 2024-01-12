@@ -1,3 +1,11 @@
+# pylint: disable=unused-variable
+# pylint: disable=line-too-long
+# pylint: disable=wrong-import-order
+# pylint: disable=broad-exception-caught
+# pylint: disable=unused-import
+# pylint: disable=invalid-name
+# pylint: disable=trailing-whitespace
+# pylint: disable=not-callable
 '''Admin modele'''
 import os
 import sys
@@ -11,9 +19,7 @@ from sqlalchemy.sql import or_
 from sqlalchemy.sql import union
 from sqlalchemy.sql import distinct
 from sqlalchemy.sql import desc
-from sqlalchemy.dialects.mysql import base 
-base.ischema_names['tinyint'] = base.BOOLEAN
-base.ischema_names['mediumtext'] = base.TEXT 
+from sqlalchemy.dialects.mysql import base
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import (
@@ -29,6 +35,8 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint
 )
+base.ischema_names['tinyint'] = base.BOOLEAN
+base.ischema_names['mediumtext'] = base.TEXT
 
 from core.db import DB
 from core.access import Access

@@ -32,6 +32,7 @@ from fsspec import filesystem
 import subprocess
 import shutil
 from pathlib import Path
+from py_rust_odbc_csv import odbc_csv # pylint: disable=no-name-in-module
 
 from core.db import DB
 from core.crud import Crud
@@ -1708,10 +1709,11 @@ class Etl:
             elif _conf.get('sql'):
                 sql = _conf.get('sql')
             sql = self.set_query_date(sql, date_ref)
-            bin_path = r'rust-odbc-csv'
+            #bin_path = r'rust-odbc-csv'
             conn_str = engine.url
-            print(bin_path, conn_str)
-            res = subprocess.check_output([bin_path, conn_str, sql.strip(), '50000', _input.get('destination_table')])
+            #print(bin_path, conn_str)
+            #res = subprocess.check_output([bin_path, conn_str, sql.strip(), '50000', _input.get('destination_table')])
+            res = odbc_csv([conn_str, sql])
             res_json = json.loads(res)
             if res_json.get('success') is True and res_json.get('fname'):
                 _input['file'] = res_json.get('fname')
