@@ -97,8 +97,8 @@ try:
     os.stat(f'{os.getcwd()}/{conf.get("UPLOAD")}')
 except Exception as _err:# pylint: disable=broad-exception-caught
     os.mkdir(f'{os.getcwd()}/{conf.get("UPLOAD")}')
-app.mount('/assets', StaticFiles(directory = conf.get('STATIC')), name = 'static')
 app.mount('/static', StaticFiles(directory = conf.get('STATIC')), name = 'static')
+app.mount('/assets', StaticFiles(directory = conf.get('ASSETS')), name = 'static')
 app.mount('/uploads', StaticFiles(directory = conf.get('UPLOAD')), name = 'static')
 
 # VERIFY TOKEN
