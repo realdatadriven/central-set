@@ -233,7 +233,8 @@ class Crud:
                             _alarms_obj = []
                             for alarm in alarms:
                                 trigger_value = alarm.get("TRIGGER")
-                                _dt = event.get("DTSTART").dt + trigger_value.dt
+                                #_dt = event.get("DTSTART").dt + trigger_value.dt
+                                _dt = _ical.start + trigger_value.dt
                                 _alarms_obj.append({
                                     'description': alarm.get("DESCRIPTION"),
                                     'trigger': _dt

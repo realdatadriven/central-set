@@ -212,10 +212,13 @@ class Read:
                         elif fil.get('cond').lower() in ['is true', 'is false', 'is null', 'is not null']:
                             sql = sql.where(text(f"""{tbl.c[fil.get('field')]} {fil.get('cond')}"""))
             # TEXT SEARCH
+            _split_pattern = re.compile(r'\||\;')
             if self.params['data'].get('pattern'):
                 aux = []
                 key = f"%{self.params['data'].get('pattern')}%"
                 key2 = f"{self.params['data'].get('pattern')}"
+                _splited_keys = re.split(_split_pattern, key2)
+                # print(key, key2, _splited_keys)
                 if self.params['data'].get('pattern').find('%') != -1:
                     key = f"{self.params['data'].get('pattern')}"    
                 for fil in fields:
@@ -223,13 +226,23 @@ class Read:
                         continue
                     elif fks.get(fil):
                         continue
-                    aux.append(tbl.c[fil].like(key))
-                    if engine.name in ['sqlite']:
-                        pass
-                        # aux.append(text(f'"{_table}"."{fil}" REGEXP \'{text(key2)}\''))
+                    if len(_splited_keys) > 0:
+                        for k in _splited_keys:
+                            _key = k.strip().replace(' ', '%')
+                            aux.append(tbl.c[fil].like(f'%{_key}%'))
+                    else:
+                        aux.append(tbl.c[fil].like(key))
+                        if engine.name in ['sqlite']:
+                            pass
+                            # aux.append(text(f'"{_table}"."{fil}" REGEXP \'{text(key2)}\''))
                 for fk in fks:
                     try:
-                        aux.append(fks[fk]['fk_table'].c[fks[fk]['referred_columns_desc']].like(key))
+                        if len(_splited_keys) > 0:
+                            for k in _splited_keys:
+                                _key = k.strip().replace(' ', '%')
+                                aux.append(tbl.c[fil].like(f'%{_key}%'))
+                        else:                            
+                            aux.append(fks[fk]['fk_table'].c[fks[fk]['referred_columns_desc']].like(key))
                     except Exception as __err:
                         pass   
                 sql = sql.where(or_(*aux))
