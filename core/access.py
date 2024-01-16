@@ -129,10 +129,10 @@ class Access:
                         _admin_engine = admin_db.get_engine()
                         _admin_metadata = admin_db.get_metadata(_admin_engine)
                     else:
-                        admin_db = self.db                
+                        admin_db = self.db
                     _admin_conn = _admin_engine.connect()
                     # USER ROLES
-                    roles = [user.get('role_id')]               
+                    roles = [user.get('role_id')]
                     # print('table_access:', tables, 'roles:', roles)
                     tbl = Table('user_role', _admin_metadata, autoload_with = _admin_engine)
                     join_tbl = Table('role', _admin_metadata, autoload_with = _admin_engine)
@@ -247,9 +247,9 @@ class Access:
                     _admin_metadata = metadata
                     if admin_db:
                         _admin_engine = admin_db.get_engine()
-                        _admin_metadata = admin_db.get_metadata(_admin_engine)    
+                        _admin_metadata = admin_db.get_metadata(_admin_engine)
                     else:
-                        admin_db = self.db                
+                        admin_db = self.db
                     _admin_conn = _admin_engine.connect()
                     # USER ROLES
                     roles = [user.get('role_id')]                    
@@ -383,9 +383,9 @@ class Access:
                     _admin_metadata = metadata
                     if admin_db:
                         _admin_engine = admin_db.get_engine()
-                        _admin_metadata = admin_db.get_metadata(_admin_engine)    
+                        _admin_metadata = admin_db.get_metadata(_admin_engine)
                     else:
-                        admin_db = self.db                
+                        admin_db = self.db
                     _admin_conn = _admin_engine.connect()
                     tbl = Table('menu_table', _admin_metadata, autoload_with = _admin_engine)
                     join_tbl = Table('table', _admin_metadata, autoload_with = _admin_engine)

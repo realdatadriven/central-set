@@ -84,15 +84,15 @@ class Crud:
         try:
             user = self.params.get('user')
             _table = self.params['data'].get('table')
-            # PERMISSIONS  
+            # PERMISSIONS
             self.params['permissions'] = {}
-            if user.get('role_id') != 1:       
+            if user.get('role_id') != 1:      
                 _access = Access(self.conf, self.params, self.db, self.i18n)
                 permissions = await _access.permissions(_table)
                 self.params['permissions'] = permissions
                 # ROW LEVEL ACCESS
                 row_level_tables = await _access.row_level_tables()
-                #print(row_level_tables)
+                #print('row_level_tables:', row_level_tables)
                 row_level_tables = row_level_tables.get('tables')
                 if len(row_level_tables) > 0:
                     self.params['row_level_tables'] = row_level_tables

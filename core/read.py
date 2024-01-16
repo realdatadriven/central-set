@@ -76,12 +76,14 @@ class Read:
                     if _table in self.params['row_level_tables']:
                         _tables_to_check_row_level.append(_table)
                     for ref_field in fks:
-                        _tables_to_check_row_level.append(fks[ref_field].get('referred_table'))
-                        _rls_fk_table_ref[fks[ref_field].get('referred_table')] = fks[ref_field]               
+                        if fks[ref_field].get('referred_table') in self.params['row_level_tables']:
+                            _tables_to_check_row_level.append(fks[ref_field].get('referred_table'))
+                        _rls_fk_table_ref[fks[ref_field].get('referred_table')] = fks[ref_field]
+                # print(self.params['row_level_tables'], '_tables_to_check_row_level:', _tables_to_check_row_level)          
                 if len(_tables_to_check_row_level) > 0:
                     _access = Access(self.conf, self.params, self.db, self.i18n)
                     _row_level_access = await _access.row_level_access(tables = _tables_to_check_row_level)
-                #print('_row_level_access:', _row_level_access)
+                print('_row_level_access:', _row_level_access)
             fields = list(map(lambda field: field.get('name'), inspector.get_columns(_table)))
             flds = [tbl]
             _joins = tbl
@@ -217,15 +219,13 @@ class Read:
             #print(_apply_patt_only)
             if self.params['data'].get('pattern'):
                 aux = []
-                _skip = True
+                _skip = False
                 if not _apply_patt_only:
-                    _skip = False
+                    pass
                 elif not isinstance(_apply_patt_only, list):
-                    _skip = False
+                    pass
                 elif _table not in _apply_patt_only:
                     _skip = True
-                else:
-                    _skip = False
                     #print('_apply_patt_only:', _table)
                 #print(_skip, _table)
                 if _skip is False:
@@ -274,7 +274,7 @@ class Read:
                         _row_ids = []
                         if _row_level_access.get(_rls_table):
                             filtered_read_access = filter (
-                                lambda rls: rls.get('read') == True,
+                                lambda rls: rls.get('read') is True,
                                 _row_level_access.get(_rls_table)
                             )
                             _row_ids = list(
@@ -332,7 +332,7 @@ class Read:
                 pass
             else:
                 sql = sql.limit(limit).offset(offset)
-            #print(2, sql)#, sql_total)
+            # print(2, sql)#, sql_total)
             # EXECUTE
             data = []
             total = 0

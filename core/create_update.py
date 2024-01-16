@@ -81,7 +81,8 @@ class CreateUpdate:
                     if _table in self.params['row_level_tables']:
                         _tables_to_check_row_level.append(_table)
                     for ref_field in fks:
-                        _tables_to_check_row_level.append(fks[ref_field].get('referred_table'))
+                        if fks[ref_field].get('referred_table') in self.params['row_level_tables']:
+                            _tables_to_check_row_level.append(fks[ref_field].get('referred_table'))
                         _rls_fk_table_ref[fks[ref_field].get('referred_table')] = fks[ref_field]
                 if len(_tables_to_check_row_level) > 0:
                     _access = Access(self.conf, self.params, self.db, self.i18n)
