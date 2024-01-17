@@ -5,12 +5,12 @@ name = "pypi"
 
 [packages]
 fastapi = "*"
-uvicorn = {extras = ["standard"], version = "*"}
+uvicorn = {extras = ["standard"] }
 python-multipart = "*"
-python-i18n = {extras = ["yaml"], version = "*"}
+python-i18n = {extras = ["yaml"] }
 pyyaml = "*"
-passlib = {extras = ["bcrypt"], version = "*"}
-python-jose = {extras = ["cryptography"], version = "*"}
+passlib = {extras = ["bcrypt"] }
+python-jose = {extras = ["cryptography"] }
 sqlalchemy = "*"
 sqlalchemy-utils = "*"
 pandas = "*"
@@ -43,6 +43,9 @@ fsspec = "*"
 py-rust-odbc-csv = "*"
 icalevents = "*"
 ics = "*"
+# WINDOWS
+pywin32 = "*"
+pythoncom = "*"
 
 [dev-packages]
 
