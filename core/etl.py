@@ -33,6 +33,10 @@ import subprocess
 import shutil
 from pathlib import Path
 from py_rust_odbc_csv import odbc_csv # pylint: disable=no-name-in-module
+try:
+    import win32com.client
+except Exception as _err:
+    win32com = None
 
 from core.db import DB
 from core.crud import Crud
@@ -54,7 +58,7 @@ class Etl:
         try:
             _data = self.params['data']
             _input = _data['data']
-            _etlrb = _data.get('selected_etlrb')
+            _etlrb = _data.get('selected_etlrb', {})
             _conf = {}
             _conf_etlrb = {}
             if not _input.get('active'):
@@ -125,6 +129,8 @@ class Etl:
                 return await self._from_ftp(_input, _etlrb, _conf, _conf_etlrb)
             elif _conf.get('type') == 'webscrap': # EXTRACT FROM WEBSCRAPING
                 return await self._from_webscrap(_input, _etlrb, _conf, _conf_etlrb)
+            elif _conf.get('type') == 'outlook_mail': # OUTLOOK MAIL
+                return await self._from_outlook(_input, _etlrb, _conf, _conf_etlrb)
             else:
                 if _conf.get('type'):
                     return {'success': False, 'msg': self.i18n('type-not-suported-yet', _type = _conf.get('type'))}
@@ -1566,7 +1572,7 @@ class Etl:
                 return DB(self.conf, self.params)
         return DB(self.conf, self.params)
     async def _from_db(self, _input, _etlrb, _conf, _conf_etlrb):
-        '''extratract from db'''
+        '''extract from db'''
         try:
             date_ref = _input.get('date_ref')
             if isinstance(_input.get('date_ref'), list):
@@ -1727,7 +1733,7 @@ class Etl:
             return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
     # FTP
     async def _from_ftp(self, _input, _etlrb, _conf, _conf_etlrb):
-        '''extratract ftp'''
+        '''extract ftp'''
         try:
             _patt = re.compile(r'@ENV\..+')
             _params = _conf['params']
@@ -1774,7 +1780,7 @@ class Etl:
             return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
     # HTTP
     async def _from_webscrap(self, _input, _etlrb, _conf, _conf_etlrb):
-        '''# extratract webscrap
+        '''# extract webscrap
         input config:
         ```json
             {
@@ -1809,6 +1815,129 @@ class Etl:
             _df = pd.read_html(str(table), flavor="bs4")[0]
             if _params.get('columns', _params.get('names')):
                 _df.columns = _params.get('columns', _params.get('names'))        
+            return await self._run_import(_df, _input, _etlrb, _conf, _conf_etlrb)
+        except Exception as _err:# pylint: disable=broad-exception-caught
+            *_, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print('DEBUG INF: ', str(_err), fname, exc_tb.tb_lineno)
+            return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
+    # WEB MAIL
+    async def _from_outlook(self, _input, _etlrb, _conf, _conf_etlrb):
+        '''# extract outlook
+        input config:
+        ```json
+            {
+                "type": "outlook_mail",
+                "params": {
+                    "return_data": false,
+                    "main_folder": ["user@domain.com"],
+                    "folders": ["A receber", "Itens enviados", "inbox"],
+                    "patt_title_match": "Title.+\\|.+\\d{4}\\.\\d{2}\\.\\d{2}",
+                    "patt_title_exclude": "Não.+entregue.+|Nao.+entregue.+|Not.+delivered",
+                    "fields": []
+                }
+            }
+        ```
+        '''
+        try:
+            _patt = re.compile(r'@ENV\..+')
+            _params = _conf['params']
+            for _key in _params:
+                match_env = re.findall(_patt, str(_params[_key]))
+                if len(match_env) > 0:
+                    _env = re.sub(r'@ENV\.', '', str(match_env[0]))
+                    try:
+                        _params[_key] = os.environ.get(_env)
+                    except Exception as _err:# pylint: disable=broad-exception-caught
+                        pass
+            #print(_params)
+            #PROCESS EMAILS
+            patt_title_match = re.compile(_params.get('patt_title_match'), re.IGNORECASE)
+            #print(patt_title_match)
+            items = []
+            try:
+                #outlook  = win32com.client.Dispatch("Outlook.Application", pythoncom.CoInitialize()).GetNamespace("MAPI")
+                outlook  = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+                for folder in outlook.Folders:
+                    # MAIN FOLDER
+                    #print(1, folder.Name)
+                    if not _params.get('main_folder'):
+                        continue
+                    elif folder.Name not in _params.get('main_folder'):
+                        continue
+                    recip = outlook.CreateRecipient(str(folder))
+                    # SUBFORDERS
+                    for sub_folder in  folder.Folders:
+                        #print(2, sub_folder.Name)
+                        if not _params.get('folders'):
+                            continue
+                        elif sub_folder.Name not in _params.get('folders'):
+                            continue
+                        # LOOP MSG's
+                        messages = sub_folder.Items
+                        message  = messages.GetFirst()
+                        while message:
+                            try:
+                                d = {}
+                                d['subject'] = str(getattr(message, 'Subject', '<UNKNOWN>'))
+                                try:
+                                    d['sent_on']  = getattr(message, 'SentOn', '<UNKNOWN>').strftime('%Y-%m-%d %H:%M:%S')
+                                except Exception as _err: # pylint: disable=broad-exception-caught
+                                    d['sent_on']  = str(getattr(message, 'SentOn', '<UNKNOWN>'))
+                                    #continue
+                                # d['EntryID'] = getattr(message, 'EntryID', '<UNKNOWN>')
+                                d['sender']  = str(getattr(message, 'Sender', '<UNKNOWN>'))
+                                d['size']    = str(getattr(message, 'Size', '<UNKNOWN>'))
+                                d['body']    = str(getattr(message, 'Body', '<UNKNOWN>'))
+                                #print(d['Body'])
+                                #break
+                                match = re.findall(patt_title_match, d['subject'])
+                                match_exclude = []
+                                if _params.get('patt_title_exclude'):
+                                    patt_title_exclude = re.compile(_params.get('patt_title_exclude'), re.IGNORECASE)
+                                    match_exclude = re.findall(patt_title_exclude, d['subject'])
+                                if len(match) > 0 and len(match_exclude) == 0:
+                                    # print(folder.Name, sub_folder.Name, d['subject'])
+                                    for field in _params.get('fields'):
+                                        #print(field)
+                                        d[field['name']] = ''
+                                        patt = re.compile(field.get('patt'), re.IGNORECASE)
+                                        match = re.findall(patt, d[field.get('where')])
+                                        if len(match) > 0:
+                                            d[field['name']] = match[0]
+                                            if field.get('replace'):
+                                                d[field['name']] = re.sub(re.compile(field['replace'][0]),  field['replace'][1],str(d[field['name']]))
+                                            d[field['name']] = re.sub(r'\r', ' ', d[field['name']])
+                                            d[field['name']] = re.sub(r'\t', ' ', d[field['name']])
+                                            d[field['name']] = re.sub(r'\n', ' ', d[field['name']])
+                                            d[field['name']] = re.sub(r';', '', d[field['name']])
+                                            if field.get('patt2') and d.get(field['name']):
+                                                patt2 = re.compile(field.get('patt2'), re.IGNORECASE)
+                                                match2 = re.findall(patt2, d.get(field['name']))
+                                                # print(patt2, match2)
+                                                if len(match2) > 0:
+                                                    d[field['name']] = match2[0]
+                                            if field.get('format') and field.get('type') == 'date' and d.get(field['name']):
+                                                try:
+                                                    d[field['name']] = re.sub(r'\s', '', d[field['name']])
+                                                    d[field['name']] = datetime.datetime.strptime(d[field['name']], field.get('format')).strftime('%Y-%m-%d')
+                                                except Exception as e:
+                                                    print(str(e), field['name'], d[field['name']])
+                                    d['main_folder']  = folder.Name
+                                    d['sub_folder']  = sub_folder.Name
+                                    #print(d)
+                                    items.append(dict(d))
+                            except Exception as inst:
+                                exc_type, exc_obj, exc_tb = sys.exc_info()
+                                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                                print('DEBUG INF: ', str(inst), fname, exc_tb.tb_lineno)
+                            message = messages.GetNext()
+                #outlook.close()
+            except Exception as e:
+                print(str(e))
+            if _params.get('return_data') is True:
+                return {'success': True, 'msg': self.i18n('success'), 'data': items}
+            _df = pd.DataFrame(items)       
             return await self._run_import(_df, _input, _etlrb, _conf, _conf_etlrb)
         except Exception as _err:# pylint: disable=broad-exception-caught
             *_, exc_tb = sys.exc_info()

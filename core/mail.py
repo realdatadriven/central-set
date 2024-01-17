@@ -153,7 +153,6 @@ class Mail:
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             print('DEBUG INF: ', str(_err), fname, exc_tb.tb_lineno)
             return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
-
     async def smtp(self):
         'smtp send mail'
         if not self.params.get('mail') and self.params['data'].get('mail'):
@@ -259,7 +258,7 @@ class Mail:
                     _file.close()
                     outlook.Attachments.Add(f'{_path}/{fname}', Type = 1, DisplayName = _mail.get('attachments'))
                 else:       
-                    outlook.Attachments.Add(f'{_path}/{_mail.get("attachments")}', Type = 1, DisplayName = att)
+                    outlook.Attachments.Add(f'{_path}/{_mail.get("attachments")}', Type = 1, DisplayName = _mail.get('attachments'))
             outlook.Send()
             return  {'success': True, 'msg': self.i18n('success')}
         except Exception as _err:
@@ -300,7 +299,7 @@ class Mail:
                     _file.close()
                     outlook.Attachments.Add(f'{_path}/{fname}', Type = 1, DisplayName = _mail.get('attachments'))
                 else:       
-                    outlook.Attachments.Add(f'{_path}/{_mail.get("attachments")}', Type = 1, DisplayName = att)
+                    outlook.Attachments.Add(f'{_path}/{_mail.get("attachments")}', Type = 1, DisplayName = _mail.get('attachments'))
             outlook.Send()
             return  {'success': True, 'msg': self.i18n('success')}
         except Exception as _err:
