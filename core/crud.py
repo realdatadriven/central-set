@@ -217,33 +217,55 @@ class Crud:
             # print(start, end)
             for _evnt in _evnts:
                 ical = f"{_header}\n{_evnt.get('ical')}\n{_tail}"
-                # print(_evnt.get('task'), ical)
-                parsed_events = icalparser.parse_events(
-                    ical,
-                    start = start,
-                    end = end,
-                    default_span = datetime.timedelta(days = _days)
-                )
-                for _ical in parsed_events:
-                    calendar = icalendar.Calendar.from_ical(ical)
-                    for event in calendar.walk('VEVENT'):
-                        # print(event.get("SUMMARY"), event.get("DTSTART").dt, event.get("DTEND").dt)
-                        if _ical.summary == event.get("SUMMARY"):
-                            alarms = event.walk("VALARM")
-                            _alarms_obj = []
-                            for alarm in alarms:
-                                trigger_value = alarm.get("TRIGGER")
-                                #_dt = event.get("DTSTART").dt + trigger_value.dt
-                                _dt = _ical.start + trigger_value.dt
-                                _alarms_obj.append({
-                                    'description': alarm.get("DESCRIPTION"),
-                                    'trigger': _dt
-                                })
+                try:
+                    parsed_events = icalparser.parse_events(
+                        ical,
+                        start = start,
+                        end = end,
+                        default_span = datetime.timedelta(days = _days)
+                    )
+                    #print(1, _evnt.get('task_id'), len(parsed_events))
+                    for _ical in parsed_events:
+                        try:
+                            calendar = icalendar.Calendar.from_ical(ical)
+                            for event in calendar.walk('VEVENT'):
+                                # print(event.get("SUMMARY"), event.get("DTSTART").dt, event.get("DTEND").dt)
+                                if _ical.summary == event.get("SUMMARY"):
+                                    alarms = event.walk("VALARM")
+                                    _alarms_obj = []
+                                    for alarm in alarms:
+                                        trigger_value = alarm.get("TRIGGER")
+                                        #_dt = event.get("DTSTART").dt + trigger_value.dt
+                                        _dt = _ical.start + trigger_value.dt
+                                        _alarms_obj.append({
+                                            'description': alarm.get("DESCRIPTION"),
+                                            'trigger': _dt
+                                        })
+                            _events_obj.append({
+                                **_evnt,
+                                'summary': _ical.summary,
+                                'start': _ical.start,
+                                'alarms': _alarms_obj
+                            })
+                        except Exception as _err:# pylint: disable=broad-exception-caught
+                            print(2, _evnt.get('task_id'), str(_err))
+                            _events_obj.append({
+                                **_evnt,
+                                'success': False,
+                                'msg': str(_err),
+                                'summary': None,
+                                'start': None,
+                                'alarms': []
+                            })
+                except Exception as _err:# pylint: disable=broad-exception-caught
+                    print(1, _evnt.get('task_id'), str(_err))
                     _events_obj.append({
                         **_evnt,
-                        'summary': _ical.summary,
-                        'start': _ical.start,
-                        'alarms': _alarms_obj
+                        'success': False,
+                        'msg': str(_err),
+                        'summary': None,
+                        'start': None,
+                        'alarms': []
                     })
             return {'success': True, 'msg': self.i18n('success'), 'data': _events_obj}
         except Exception as _err:# pylint: disable=broad-exception-caught
