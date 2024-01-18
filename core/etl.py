@@ -1944,7 +1944,8 @@ class Etl:
                                 d['sender']  = str(getattr(message, 'Sender', '<UNKNOWN>'))
                                 d['size']    = str(getattr(message, 'Size', '<UNKNOWN>'))
                                 d['body']    = str(getattr(message, 'Body', '<UNKNOWN>'))
-                                d['body']    = re.sub(r'\n{1,}', '\n', d['body'])
+                                d['body']    = re.sub(r'[\n\r]{2,}', '\n', d['body'])
+                                d['body']    = re.sub(r'[\n\r]{2,}', '\n', d['body'])
                                 #print(d['Body'])
                                 #break
                                 match = re.findall(patt_title_match, d['subject'])
