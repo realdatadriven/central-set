@@ -3,7 +3,7 @@
     "params": { 
         "main_folder": ["user@domain.com"],
         "folders": ["A receber", "Itens enviados", "inbox"],
-        "patt_title_match": "Title.+\\|.+\\d{4}\\.\\d{2}\\.\\d{2}",
+        "patt_title_match": "Title.+\\d{4}\\.\\d{2}\\.\\d{2}",
         "patt_title_exclude": "Não.+entregue.+|Nao.+entregue.+|Not.+delivery",
         "fields": [
             {

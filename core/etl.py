@@ -1830,11 +1830,27 @@ class Etl:
                 "type": "outlook_mail",
                 "params": {
                     "return_data": false,
-                    "main_folder": ["user@domain.com"],
-                    "folders": ["A receber", "Itens enviados", "inbox"],
-                    "patt_title_match": "Title.+\\|.+\\d{4}\\.\\d{2}\\.\\d{2}",
+                    "subject_filter": "TASK_NAME",
+                    "body_filter": null,
+                    "sender_filter": null,
+                    "sender_email_filter": null,
+                    "recipients_filter": null,
+                    "recipients_email_filter": null,
+                    "date_filter": true,
+                    "save_attachemt": true,
+                    "main_folder": ["user@domai.com"],
+                    "folders": ["A Receber", "Inbox"],
+                    "patt_title_match": "TASK_NAME.\\d{4}.?\\d{2}.?\\d{2}",
                     "patt_title_exclude": "Não.+entregue.+|Nao.+entregue.+|Not.+delivered",
-                    "fields": []
+                    "fields": [
+                        {
+                            "name": "date_ref",
+                            "type": "date",
+                            "patt": "\\d{4}.?\\d{2}.?\\d{2}",
+                            "where": "subject",
+                            "format": "%Y%m%d"
+                        }
+                    ]
                 }
             }
         ```
@@ -1850,10 +1866,12 @@ class Etl:
                         _params[_key] = os.environ.get(_env)
                     except Exception as _err:# pylint: disable=broad-exception-caught
                         pass
+            date_ref = parser.parse(_input.get('date_ref'))
             #print(_params)
             #PROCESS EMAILS
             patt_title_match = re.compile(_params.get('patt_title_match'), re.IGNORECASE)
-            #print(patt_title_match)
+            print(patt_title_match)
+            _path = f'{os.getcwd()}/{self.conf.get("UPLOAD")}/tmp'
             items = []
             try:
                 #outlook  = win32com.client.Dispatch("Outlook.Application", pythoncom.CoInitialize()).GetNamespace("MAPI")
@@ -1875,11 +1893,47 @@ class Etl:
                             continue
                         # LOOP MSG's
                         messages = sub_folder.Items
+                        if _params.get('subject_filter'):
+                            _filter = _params.get('subject_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:subject\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('body_filter'):
+                            _filter = _params.get('body_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:textdescription\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('sender_email_filter'):
+                            _filter = _params.get('sender_email_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:fromemail\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('sender_filter'):
+                            _filter = _params.get('sender_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:fromname\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('recipients_email_filter'):
+                            _filter = _params.get('recipients_email_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:displayto\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('recipients_filter'):
+                            _filter = _params.get('recipients_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:displayto\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('date_filter'):
+                            _date = date_ref.strftime('%Y-%m-%d')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:datereceived\" >= '{_date}'"
+                            #print(filter_str)
+                            messages = messages.Restrict(filter_str)
                         message  = messages.GetFirst()
                         while message:
                             try:
                                 d = {}
                                 d['subject'] = str(getattr(message, 'Subject', '<UNKNOWN>'))
+                                #print(d['subject'])
                                 try:
                                     d['sent_on']  = getattr(message, 'SentOn', '<UNKNOWN>').strftime('%Y-%m-%d %H:%M:%S')
                                 except Exception as _err: # pylint: disable=broad-exception-caught
@@ -1889,6 +1943,7 @@ class Etl:
                                 d['sender']  = str(getattr(message, 'Sender', '<UNKNOWN>'))
                                 d['size']    = str(getattr(message, 'Size', '<UNKNOWN>'))
                                 d['body']    = str(getattr(message, 'Body', '<UNKNOWN>'))
+                                d['body']    = re.sub(r'\n{1,}', '\n', d['body'])
                                 #print(d['Body'])
                                 #break
                                 match = re.findall(patt_title_match, d['subject'])
@@ -1897,6 +1952,19 @@ class Etl:
                                     patt_title_exclude = re.compile(_params.get('patt_title_exclude'), re.IGNORECASE)
                                     match_exclude = re.findall(patt_title_exclude, d['subject'])
                                 if len(match) > 0 and len(match_exclude) == 0:
+                                    recipients = message.Recipients
+                                    _recipients = []
+                                    for recipient in recipients:
+                                        _recipients.append(recipient.Name)
+                                    d['recipients'] = ';'.join(_recipients)
+                                    if _params.get('save_attachemt'):
+                                        try:
+                                            _fname = f'{_path}/{d["subject"]}.msg'
+                                            if not os.path.exists(_fname):
+                                                message.SaveAs(_fname, 3)
+                                            d['fname'] = f'tmp/{d["subject"]}.msg'
+                                        except Exception as _err:
+                                            print(str(_err))
                                     # print(folder.Name, sub_folder.Name, d['subject'])
                                     for field in _params.get('fields'):
                                         #print(field)
