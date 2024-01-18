@@ -2,12 +2,12 @@
 import os
 import sys
 import datetime
+import re
 from sqlalchemy import Table
 from sqlalchemy.sql import select
 from sqlalchemy.sql import update
 from sqlalchemy.sql import or_
 from jose import jwt
-import re
 #from passlib.hash import pbkdf2_sha256
 from passlib.context import CryptContext
 
@@ -148,7 +148,7 @@ class Login:
         try:
             login = await self.login()
             if login['success'] is True:
-                _data = self.params['data']                
+                _data = self.params['data']
                 if not _data.get('new_password'):
                     return {
                         'success': False,

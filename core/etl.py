@@ -33,6 +33,7 @@ import subprocess
 import shutil
 from pathlib import Path
 from py_rust_odbc_csv import odbc_csv # pylint: disable=no-name-in-module
+from werkzeug.utils import secure_filename
 try:
     import win32com.client
 except Exception as _err:
@@ -1959,10 +1960,10 @@ class Etl:
                                     d['recipients'] = ';'.join(_recipients)
                                     if _params.get('save_attachemt'):
                                         try:
-                                            _fname = f'{_path}/{d["subject"]}.msg'
+                                            _fname = f'{_path}/{secure_filename(d["subject"])}.msg'
                                             if not os.path.exists(_fname):
                                                 message.SaveAs(_fname, 3)
-                                            d['fname'] = f'tmp/{d["subject"]}.msg'
+                                            d['fname'] = f'tmp/{secure_filename(d["subject"])}.msg'
                                         except Exception as _err:
                                             print(str(_err))
                                     # print(folder.Name, sub_folder.Name, d['subject'])
