@@ -6,12 +6,19 @@
 # pylint: disable=invalid-name
 # pylint: disable=trailing-whitespace
 # pylint: disable=not-callable
+# pylint: disable=singleton-comparison
+# pylint: disable=broad-exception-caught
+# pylint: disable=bare-except
 '''Admin modele'''
+from core.db import DB
+from core.access import Access
+from core.crud import Crud
 import os
 import sys
 import datetime
 import copy
 import re
+from sqlalchemy import Table
 from sqlalchemy.sql import select
 from sqlalchemy.sql import join
 from sqlalchemy.sql import and_
@@ -38,10 +45,6 @@ from sqlalchemy import (
 base.ischema_names['tinyint'] = base.BOOLEAN
 base.ischema_names['mediumtext'] = base.TEXT
 
-from core.db import DB
-from core.access import Access
-from core.crud import Crud
-from sqlalchemy import Table
 
 class Admin:
     '''Admin modele'''
@@ -912,16 +915,16 @@ class Admin:
                         #print(fk_tbl)
                         ## comp = compile(fk_tbl, 'something', 'exec')
                         #exec(fk_tbl, globals_parameter , locals_parameter)
-                        exec(fk_tbl)
+                        exec(fk_tbl) # pylint: disable=exec-used
                     #_run = 'Base.metadata.create_all(bind = engine, checkfirst = True)\n'
                     #print(f'{depend}{schema}{_run}')
                     try:
-                        exec(f'{schema}')
+                        exec(f'{schema}') # pylint: disable=exec-used
                         #for t in Base.metadata.tables:
                         #    print(t)
                         if self.params['data']['table_metadata'].get('replace') is True:
-                            eval(f'{table_name.capitalize()}.__table__.drop(bind = engine, checkfirst = True)')
-                        eval(f'{table_name.capitalize()}.__table__.create(bind = engine, checkfirst = True)')
+                            eval(f'{table_name.capitalize()}.__table__.drop(bind = engine, checkfirst = True)')  # pylint: disable=eval-used
+                        eval(f'{table_name.capitalize()}.__table__.create(bind = engine, checkfirst = True)') # pylint: disable=eval-used
                         #Base.metadata.create_all(bind = engine, checkfirst = True)                        
                         try:
                             _admin_conn.close()
@@ -995,3 +998,4 @@ class Admin:
                 'success': False,
                 'msg': self.i18n('unexpected-error', err = str(_err))
             }
+        
