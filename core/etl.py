@@ -2259,10 +2259,11 @@ class Etl:
                 metadata = sa.MetaData()
             else:
                 engine = _db.get_engine(_database)
+                #print(2, engine.url)
                 metadata = self.db.get_metadata(engine)
             destination_table = _input.get('destination_table')
             ref_date_field = _input.get('ref_date_field', None)
-            # print(engine.url, destination_table)
+            print(destination_table, engine.url)
             sa_table = Table(destination_table, metadata, autoload_with = engine)
             with engine.connect() as conn:
                 if engine.driver in ('pysqlite', 'sqlite'):
