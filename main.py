@@ -245,7 +245,7 @@ async def upload_file(
         }
 # SAVE LOGS
 async def create_log(req, _method, _conf, db, params, res, log): #pylint: disable=unused-argument
-    '''CREATING LOGS'''
+    '''CREATE LOGS'''
     try:
         to_ignore = _conf['REQUEST_LOG'].get('ACTIONS_TO_IGNORE')
         # print(to_ignore)
