@@ -70,7 +70,7 @@ class Etl:
                         _conf = json.loads(_input.get('etl_rbase_input_conf'))
                     elif isinstance(_input.get('etl_rbase_input_conf'), dict):
                         _conf = _input.get('etl_rbase_input_conf')
-                    # print('CONF:', _conf)
+                    print('CONF:', _conf)
                 except Exception as _err:# pylint: disable=broad-exception-caught
                     pass
             if _etlrb.get('etl_report_base_conf'):
@@ -87,7 +87,7 @@ class Etl:
             date_ref = _input.get('date_ref')
             # print('date_ref:', date_ref)
             _path = f'{os.getcwd()}/{self.conf.get("UPLOAD")}'
-            if is_tmp is True:
+            if is_tmp is True or _input.get('temp') or _input.get('tmp'):
                 _path = tempfile.gettempdir()
             file_exists = None
             if fname:
@@ -106,6 +106,8 @@ class Etl:
                     #        "sql": "CREATE OR REPLACE TBL AS SELECT * FROM '<filename>'",
                     #    }
                     #}```"""
+                    if not _conf.get('duckdb'):
+                         _conf['duckdb'] = copy.deepcopy(_conf.get('params'))
                     return await self._duckdb(_input, _etlrb, _conf, _conf_etlrb)
                 elif _conf.get('type') == 'excel-parts':
                     #"""```json
@@ -920,7 +922,7 @@ class Etl:
             elif isinstance(_input.get('date_ref'), str):
                 date_ref = parser.parse(_input.get('date_ref'))
             _path = f'{os.getcwd()}/{self.conf.get("UPLOAD")}'
-            if is_tmp is True:
+            if is_tmp is True or _input.get('temp') or _input.get('tmp'):
                 _path = tempfile.gettempdir()
             df = pd.DataFrame([])
             basename, ext = os.path.splitext(fname)
@@ -1263,12 +1265,15 @@ class Etl:
             _path = f'{os.getcwd()}/{self.conf.get("UPLOAD")}'
             if is_tmp is True:
                 _path = tempfile.gettempdir()
+            _path = os.path.normpath(_path).encode("unicode_escape").decode("utf8")
             basename, ext = os.path.splitext(fname)
             file_ref_patts = [
                 {'patt': r'(\d{8})(?!.*\d+)', 'fmrt': '%Y%m%d'},
                 {'patt': r'(\d{6})(?!.*\d+)', 'fmrt': '%y%m%d'},
                 {'patt': r'(\d{4})(?!.*\d+)', 'fmrt': '%Y%m'}
             ]
+            if not _conf.get('duckdb'):
+                _conf['duckdb'] = copy.deepcopy(_conf.get('params'))
             file_ref = None
             for patt in file_ref_patts:
                 match = re.findall(patt.get('patt'), basename)
@@ -1404,9 +1409,9 @@ class Etl:
             elif _conf['duckdb'].get('sql'):
                 sql = _conf['duckdb'].get('sql')
                 sql_bak = _conf['duckdb'].get('sql')
-            patt = r'<filename>|<fname>|<file_name>|{filename}|{fname}|{file_name}'
+            patt = r'\<filename\>|\<fname\>|\<file_name\>|\{filename\}|\{fname\}|\{file_name\}'
             sql = re.sub(patt, f'{_path}/{fname}', sql)
-            patt = r'<table>|<table_name>|<tablename>|{table}|{table_name}|{tablename}'
+            patt = r'\<table\>|\<table_name\>|\<tablename\>|\{table\}|\{table_name\}|\{tablename\}'
             sql = re.sub(patt, _input.get('destination_table'), sql)
             sql = _qd.set_date(sql, date_ref)
             sql = self.set_str_env(sql)
@@ -1871,7 +1876,7 @@ class Etl:
             #print(_params)
             #PROCESS EMAILS
             patt_title_match = re.compile(_params.get('patt_title_match'), re.IGNORECASE)
-            print(patt_title_match)
+            #print(patt_title_match)
             _path = f'{os.getcwd()}/{self.conf.get("UPLOAD")}/tmp'
             items = []
             try:
@@ -1882,7 +1887,7 @@ class Etl:
                     #print(1, folder.Name)
                     if not _params.get('main_folder'):
                         continue
-                    elif folder.Name not in _params.get('main_folder'):
+                    elif folder.Name not in _params.get('main_folder') and str(folder.Name).lower() not in _params.get('main_folder'):
                         continue
                     recip = outlook.CreateRecipient(str(folder))
                     # SUBFORDERS
@@ -1890,7 +1895,7 @@ class Etl:
                         #print(2, sub_folder.Name)
                         if not _params.get('folders'):
                             continue
-                        elif sub_folder.Name not in _params.get('folders'):
+                        elif sub_folder.Name not in _params.get('folders') and sub_folder.Name.lower() not in _params.get('folders'):
                             continue
                         # LOOP MSG's
                         messages = sub_folder.Items
