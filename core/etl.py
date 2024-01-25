@@ -70,7 +70,7 @@ class Etl:
                         _conf = json.loads(_input.get('etl_rbase_input_conf'))
                     elif isinstance(_input.get('etl_rbase_input_conf'), dict):
                         _conf = _input.get('etl_rbase_input_conf')
-                    print('CONF:', _conf)
+                    #print('CONF:', _conf)
                 except Exception as _err:# pylint: disable=broad-exception-caught
                     pass
             if _etlrb.get('etl_report_base_conf'):
@@ -1380,11 +1380,16 @@ class Etl:
             elif isinstance(_conf['duckdb'].get('valid'), list):
                 for valid in _conf['duckdb'].get('valid'):
                     sql = valid.get('sql', valid.get('query'))
+                    patt = r'\<filename\>|\<fname\>|\<file_name\>|\{filename\}|\{fname\}|\{file_name\}'
+                    # print(f'{_path}/{fname}')
+                    sql = re.sub(patt, f'{_path}/{fname}', sql)
+                    patt = r'\<table\>|\<table_name\>|\<tablename\>|\{table\}|\{table_name\}|\{tablename\}'
+                    sql = re.sub(patt, _input.get('destination_table'), sql)
                     sql = _qd.set_date(sql, date_ref)
                     sql = self.set_str_env(sql)
-                    print('DUCKDB VALIDATION: ', sql)
+                    # print('DUCKDB VALIDATION: ', sql)
                     try:
-                        df = conn.sql(sql).fetchall().df()
+                        df = conn.sql(sql).df()
                         rule = valid.get('rule')
                         if rule == 'throw_if_not_empty' and df.shape[0] > 0:
                             msg = valid.get('msg', rule)
@@ -1397,11 +1402,13 @@ class Etl:
                             msg = re.sub(r'<filename>|<fname>', f'{fname}', msg)
                             return {'success': False, 'msg': msg}
                     except Exception as _err:
-                        conn.close()
                         *_, exc_tb = sys.exc_info()
-                        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                        print('DEBUG INF DUCKDB VALIDATION QUERIES: ', str(_err), fname, exc_tb.tb_lineno)
-                        return {'success': False, 'msg': self.i18n('duckdb-valid-faild', sql = sql, err = str(_err))}
+                        _fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                        print('DEBUG INF DUCKDB VALIDATION QUERIES: ', str(_err), _fname, exc_tb.tb_lineno)
+                        _chk_first_time = re.findall(f"{_input.get('destination_table')}.+does not exist", str(_err))
+                        if len(_chk_first_time) == 0:
+                            conn.close()
+                            return {'success': False, 'msg': self.i18n('duckdb-valid-faild', sql = sql, err = str(_err))}
             # EXECUTE THE MAIN QUERY
             if _conf['duckdb'].get('query'):
                 sql = _conf['duckdb'].get('query')
@@ -1445,10 +1452,11 @@ class Etl:
                     df = conn.sql(sql_table_chk).df()
                     if df.shape[0] == 0:
                         _table_already_created = False
-                        # print(1, sql)
+                        #print(1, sql)
                         sql = re.sub(patt, 'CREATE TABLE ', sql)
                         sql = re.sub(table, f'{table} AS ', sql)
-                        # print(2, sql)
+                        sql = re.sub(r'\bAS\s+AS\b', 'AS',sql)
+                        #print(2, sql)
                 except Exception as _err:
                     *_, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -1480,7 +1488,7 @@ class Etl:
                     table = re.sub(patt, '', _match_insert_patt[0])
                     _db_columns_list = []
                     #_db_columns_types = {}
-                    sql_column = f"SELECT * FROM {table} LIMIT 10"
+                    sql_column = f"SELECT * FROM \"{table}\" LIMIT 10"
                     try:
                         df = conn.sql(sql_column).df()
                         _db_columns_list = df.columns
@@ -1709,26 +1717,21 @@ class Etl:
                 date_ref = [parser.parse(d) if isinstance(d, str) else d for d in _input.get('date_ref')]
             elif isinstance(_input.get('date_ref'), str):
                 date_ref = parser.parse(_input.get('date_ref'))
-            _database = copy.deepcopy(_conf.get('params'))
-            _db = await self._get_new_db(_database)
-            if isinstance(_db, sa.engine.base.Engine):
-                engine = _db
-            else:
-                engine = _db.get_engine(_database)
             sql = f"""SELECT * FROM "{_input.get('destination_table')}";"""
             if _conf.get('query'):
                 sql = _conf.get('query')
             elif _conf.get('sql'):
                 sql = _conf.get('sql')
             sql = self.set_query_date(sql, date_ref)
+            conn_str = self.set_str_env(_conf.get('params', {}).get('odbc_conn'))
+            #print(conn_str, sql)
             #bin_path = r'rust-odbc-csv'
-            conn_str = engine.url
-            #print(bin_path, conn_str)
             #res = subprocess.check_output([bin_path, conn_str, sql.strip(), '50000', _input.get('destination_table')])
             res = odbc_csv([conn_str, sql])
             res_json = json.loads(res)
             if res_json.get('success') is True and res_json.get('fname'):
-                _input['file'] = res_json.get('fname')
+                print(res_json)
+                _input['file'] = os.path.split(res_json.get('fname'))[1]
                 _input['save_only_temp'] = True
                 return await self._duckdb(_input, _etlrb, _conf, _conf_etlrb)
             return res 
