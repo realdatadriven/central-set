@@ -18,6 +18,7 @@ import importlib
 import re
 from typing import Optional, List, Union
 import uvicorn
+from uvicorn.config import LOGGING_CONFIG
 import yaml
 
 import i18n
@@ -459,6 +460,7 @@ async def websocket_endpoint(
 if __name__ == '__main__':
     #print('CONFIG:', conf)
     try:
+        LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s [%(name)s] %(levelprefix)s %(message)s"
         uvicorn.run('main:app', host = '0.0.0.0', port = conf.get('PORT'), log_level = 'info', reload = True)
     except Exception as _err:# pylint: disable=broad-exception-caught
         print(str(_err))

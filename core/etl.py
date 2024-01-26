@@ -1272,6 +1272,10 @@ class Etl:
                 {'patt': r'(\d{6})(?!.*\d+)', 'fmrt': '%y%m%d'},
                 {'patt': r'(\d{4})(?!.*\d+)', 'fmrt': '%Y%m'}
             ]
+            pats = {
+                'file': re.compile(r'<filename>|<fname>|<file_name>|{filename}|{fname}|{file_name}', re.I),
+                'table': re.compile(r'<table>|<table_name>|<tablename>|{table}|{table_name}|{tablename}', re.I)
+            }
             if not _conf.get('duckdb'):
                 _conf['duckdb'] = copy.deepcopy(_conf.get('params'))
             file_ref = None
@@ -1363,7 +1367,7 @@ class Etl:
             # ATACH THE DB IN CASE THE FILE IS ANTHER DUCKDB FILE
             if ext in ['.duckdb']:
                 sql = f"ATTACH '<fname>' AS {basename}"
-                sql = re.sub(r'<filename>|<fname>', f'{_path}/{fname}', sql)
+                sql = re.sub(pats['file'], f'{_path}/{fname}', sql)
                 sql = _qd.set_date(sql, date_ref)
                 print('ATTACHING:', sql)
                 try:
@@ -1380,26 +1384,22 @@ class Etl:
             elif isinstance(_conf['duckdb'].get('valid'), list):
                 for valid in _conf['duckdb'].get('valid'):
                     sql = valid.get('sql', valid.get('query'))
-                    patt = r'\<filename\>|\<fname\>|\<file_name\>|\{filename\}|\{fname\}|\{file_name\}'
                     # print(f'{_path}/{fname}')
-                    sql = re.sub(patt, f'{_path}/{fname}', sql)
-                    patt = r'\<table\>|\<table_name\>|\<tablename\>|\{table\}|\{table_name\}|\{tablename\}'
-                    sql = re.sub(patt, _input.get('destination_table'), sql)
+                    sql = re.sub(pats['file'], f'{_path}/{fname}', sql)
+                    sql = re.sub(pats['table'], _input.get('destination_table'), sql)
                     sql = _qd.set_date(sql, date_ref)
                     sql = self.set_str_env(sql)
                     # print('DUCKDB VALIDATION: ', sql)
                     try:
                         df = conn.sql(sql).df()
                         rule = valid.get('rule')
+                        msg = valid.get('msg', rule)
+                        msg = _qd.set_date(msg, date_ref)
+                        msg = re.sub(pats['file'], f'{fname}', msg)
+                        msg = re.sub(pats['table'], _input.get('destination_table'), msg)
                         if rule == 'throw_if_not_empty' and df.shape[0] > 0:
-                            msg = valid.get('msg', rule)
-                            msg = _qd.set_date(msg, date_ref)
-                            msg = re.sub(r'<filename>|<fname>', f'{fname}', msg)
                             return {'success': False, 'msg': msg}
                         elif rule == 'throw_if_empty' and df.shape[0] == 0:
-                            msg = valid.get('msg', rule)
-                            msg = _qd.set_date(msg, date_ref)
-                            msg = re.sub(r'<filename>|<fname>', f'{fname}', msg)
                             return {'success': False, 'msg': msg}
                     except Exception as _err:
                         *_, exc_tb = sys.exc_info()
@@ -1416,10 +1416,8 @@ class Etl:
             elif _conf['duckdb'].get('sql'):
                 sql = _conf['duckdb'].get('sql')
                 sql_bak = _conf['duckdb'].get('sql')
-            patt = r'\<filename\>|\<fname\>|\<file_name\>|\{filename\}|\{fname\}|\{file_name\}'
-            sql = re.sub(patt, f'{_path}/{fname}', sql)
-            patt = r'\<table\>|\<table_name\>|\<tablename\>|\{table\}|\{table_name\}|\{tablename\}'
-            sql = re.sub(patt, _input.get('destination_table'), sql)
+            sql = re.sub(pats['file'], f'{_path}/{fname}', sql)
+            sql = re.sub(pats['table'], _input.get('destination_table'), sql)
             sql = _qd.set_date(sql, date_ref)
             sql = self.set_str_env(sql)
             # IF THE DATA IS GOIN TO BE APPENDED CHECK IF ALL THE COLUMNS EXISTS
@@ -1486,9 +1484,10 @@ class Etl:
                     # DATABASE SCHEMA INFO 
                     patt = r'INSERT.+?INTO.+?'
                     table = re.sub(patt, '', _match_insert_patt[0])
+                    print(table)
                     _db_columns_list = []
                     #_db_columns_types = {}
-                    sql_column = f"SELECT * FROM \"{table}\" LIMIT 10"
+                    sql_column = f"SELECT * FROM {table} LIMIT 10"
                     try:
                         df = conn.sql(sql_column).df()
                         _db_columns_list = df.columns
@@ -1523,10 +1522,8 @@ class Etl:
                         # REPLACE SELECT * FOR SELECT **cols IN THE IMPORT STATMENT
                         #print(cols, sql_bak)
                         sql = re.sub(r'\*', cols, sql_bak)
-                        patt = r'<filename>|<fname>|<file_name>|{filename}|{fname}|{file_name}'
-                        sql = re.sub(patt, f'{_path}/{fname}', sql)
-                        patt = r'<table>|<table_name>|<tablename>|{table}|{table_name}|{tablename}'
-                        sql = re.sub(patt, _input.get('destination_table'), sql)
+                        sql = re.sub(pats['file'], f'{_path}/{fname}', sql)
+                        sql = re.sub(pats['table'], _input.get('destination_table'), sql)
                         sql = _qd.set_date(sql, date_ref)
                         sql = self.set_str_env(sql)
             # RUN IMPORT QUERY
@@ -1684,7 +1681,7 @@ class Etl:
                 sql = _conf.get('sql')
             sql = self.set_query_date(sql, date_ref)
             # print(sql, engine.url, _database)
-            print(sql)
+            #print(sql)
             chunksize = 50 * 1000
             if _conf.get('chunksize'):
                 chunksize = _conf.get('chunksize')
@@ -1730,7 +1727,7 @@ class Etl:
             res = odbc_csv([conn_str, sql])
             res_json = json.loads(res)
             if res_json.get('success') is True and res_json.get('fname'):
-                print(res_json)
+                #print(res_json)
                 _input['file'] = os.path.split(res_json.get('fname'))[1]
                 _input['save_only_temp'] = True
                 return await self._duckdb(_input, _etlrb, _conf, _conf_etlrb)
@@ -2130,6 +2127,18 @@ class Etl:
             print('DEBUG INF: ', str(_err), fname, exc_tb.tb_lineno)
             return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
     # SET DATA TO QUIERY STRING
+    def _get_dt_fmrt(self, _format):
+        '''return python date format'''
+        _py_format = _format
+        _frmts = [
+            {'frmt': r'YYYY|AAAA', 'py_fmrt': '%Y'},
+            {'frmt': r'YY|AA', 'py_fmrt': '%y'},
+            {'frmt': r'MM', 'py_fmrt': '%m'},
+            {'frmt': r'DD', 'py_fmrt': '%d'}
+        ]
+        for _fmrt in _frmts:
+            _py_format = re.sub(re.compile(_fmrt['frmt'], re.I), _fmrt['py_fmrt'], _py_format)
+        return _py_format
     def set_query_date(self, query, date_ref):
         '''set query date'''
         patt = re.compile(r"([\"]?\w+[\"]?\.[\"]?\w+[\"]?\s{0,}=\s{0,}'\{.*?\}'|[\"]?\w+[\"]?\s{0,}=\s{0,}'\{.*?\}')", re.IGNORECASE)
@@ -2145,11 +2154,7 @@ class Etl:
             for m in matchs:
                 frmt = re.findall(patt2, m)
                 if len(frmt) > 0:
-                    frmt_final = frmt[0].replace('YYYY','%Y') #FULL YEAR
-                    frmt_final = frmt_final.replace('YY','%y') #YY YEAR
-                    frmt_final = frmt_final.replace('MM','%m') #MONTH YEAR
-                    frmt_final = frmt_final.replace('DD','%d') #DAY YEAR
-                    frmt_final = frmt_final.replace('MMM','%b') #Month
+                    frmt_final = self._get_dt_fmrt(frmt[0])
                     frmt_final = frmt_final.replace('{','').replace('}','')
                     if isinstance(date_ref, list):
                         dts = ','.join([f'{dt.strftime(frmt_final)}' for dt in copy.deepcopy(date_ref)])
@@ -2165,11 +2170,7 @@ class Etl:
         if len(matchs) > 0:
             for m in matchs:
                 frmt = m
-                frmt_final = frmt.replace('YYYY','%Y') #FULL YEAR
-                frmt_final = frmt_final.replace('YY','%y') #YY YEAR
-                frmt_final = frmt_final.replace('MM','%m') #MONTH YEAR
-                frmt_final = frmt_final.replace('DD','%d') #DAY YEAR
-                frmt_final = frmt_final.replace('MMM','%b') #Month
+                frmt_final = self._get_dt_fmrt(frmt)
                 frmt_final = frmt_final.replace('{','').replace('}','')
                 if isinstance(date_ref, list):
                     procc = re.sub(patt, date_ref[0].strftime(frmt_final), m)
@@ -2179,20 +2180,14 @@ class Etl:
                 query = re.sub(patt, procc, query)
         # IN CASE WE DO HAVE TEMP TABLES WITH DATE EXTENTIONS 
         patt = re.compile(
-            r'YYYY.?MM.?DD|AAAA.?MM.?DD|YY.?MM.?DD|AA.?MM.?DD|YYYY.?MM|AAAA.?MM|YY.?MM|AA.?MM|MM.?DD'
+            r'YYYY.?MM.?DD|AAAA.?MM.?DD|YY.?MM.?DD|AA.?MM.?DD|YYYY.?MM|AAAA.?MM|YY.?MM|AA.?MM|MM.?DD|DD.?MM.?YYYY|DD.?MM.?AAAA|DD.?MM.?YY|DD.?MM.?AA'
             , re.IGNORECASE
         )
         matchs = re.findall(patt, query)
         if len(matchs) > 0:
             for m in matchs:
                 frmt = m
-                frmt_final = frmt.replace('YYYY','%Y') #FULL YEAR
-                frmt_final = frmt_final.replace('YY','%y') #YY YEAR
-                frmt_final = frmt_final.replace('AAAA','%Y') #FULL YEAR
-                frmt_final = frmt_final.replace('AA','%y') #YY YEAR
-                frmt_final = frmt_final.replace('MM','%m') #MONTH YEAR
-                frmt_final = frmt_final.replace('DD','%d') #DAY YEAR
-                frmt_final = frmt_final.replace('MMM','%b') #Month
+                frmt_final = self._get_dt_fmrt(frmt)
                 # frmt_final = frmt_final.replace('{','').replace('}','')
                 if isinstance(date_ref, list):
                     procc = re.sub(patt, date_ref[0].strftime(frmt_final), m)
@@ -2231,7 +2226,11 @@ class Etl:
                     busy_timeout = self.conf.get('SQLITE_BUSY_TIMEOUT', 60 * 1000) # 60s / 1m
                     conn.execute(text(f'PRAGMA busy_timeout = {busy_timeout}'))
                 if ref_date_field:
-                    _dts = [d if isinstance(d, str) else d.strftime('%Y-%m-%d') for d in date_ref]
+                    _dt_frmt = '%Y-%m-%d'
+                    if _input.get('date_format_org'):
+                        _dt_frmt = self._get_dt_fmrt(_input.get('date_format_org'))
+                        #print(_input.get('ref_date_field'), _input.get('date_format_org'), _dt_frmt)
+                    _dts = [d if isinstance(d, str) else d.strftime(_dt_frmt) for d in date_ref]
                     sql = sa.delete(sa_table)\
                             .where(sa_table.c[ref_date_field].in_(_dts))
                 else:
@@ -2280,7 +2279,11 @@ class Etl:
                     busy_timeout = self.conf.get('SQLITE_BUSY_TIMEOUT', 60 * 1000) # 60s / 1m
                     conn.execute(text(f'PRAGMA busy_timeout = {busy_timeout}'))
                 if ref_date_field:
-                    _dts = [d if isinstance(d, str) else d.strftime('%Y-%m-%d') for d in date_ref]
+                    _dt_frmt = '%Y-%m-%d'
+                    if _input.get('date_format_org'):
+                        _dt_frmt = self._get_dt_fmrt(_input.get('date_format_org'))
+                        #print(_input.get('ref_date_field'), _input.get('date_format_org'), _dt_frmt)
+                    _dts = [d if isinstance(d, str) else d.strftime(_dt_frmt) for d in date_ref]
                     # pylint: disable=not-callable
                     sql = select(func.count(sa_table.c[ref_date_field]))\
                         .select_from(sa_table)\

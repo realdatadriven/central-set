@@ -38,12 +38,12 @@
             "valid": [
                 {
                     "sql": "SELECT DISTINCT DATE_FIELD FROM '<filename>' WHERE DATE_FIELD = '{YYYYMMDD}' LIMIT 10",
-                    "rule": "throw_if_not_empty",
+                    "rule": "throw_if_empty",
                     "msg": "The DATE_FIELD in the '<filename>' is not YYYYMMDD!"
                 },
                 {
                     "sql": "SELECT DATE_FIELD FROM TBL WHERE DATE_FIELD = '{YYYYMMDD}' LIMIT 10",
-                    "rule": "throw_if_empty",
+                    "rule": "throw_if_not_empty",
                     "msg": "The date YYYYMMDD already exists, check the file or clean the data first!"
                 }
             ],
