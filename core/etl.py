@@ -103,10 +103,10 @@ class Etl:
                     #    "params": {
                     #        "database": "path 2 databse",
                     #        "extentions": ["spatial"],
-                    #        "sql": "CREATE OR REPLACE TBL AS SELECT * FROM '<filename>'",
+                    #        "sql": "CREATE OR REPLACE TABLE TBL AS SELECT * FROM '<filename>'",
                     #    }
                     #}```"""
-                    print('FILE TO DUCKDB')
+                    #print('FILE TO DUCKDB')
                     if not _conf.get('duckdb'):
                         _conf['duckdb'] = copy.deepcopy(_conf.get('params'))
                     return await self._duckdb(_input, _etlrb, _conf, _conf_etlrb)
