@@ -96,7 +96,7 @@ class Etl:
                 return  {'success': False, 'msg': self.i18n('file-not-founded', fname = fname)}
             if file_exists or _conf.get('type') in ['file-duckdb', 'duckdb']: # EXTRACT FROM FILE
                 print('IS FILE', fname)
-                if _conf.get('type') in ['file-duckdb', 'duckdb']:
+                if _conf.get('type') in ['file-duckdb', 'duckdb'] or _conf.get('duckdb'):
                     #"""```json
                     #{
                     #    "type": "file-duckdb",
@@ -106,8 +106,9 @@ class Etl:
                     #        "sql": "CREATE OR REPLACE TBL AS SELECT * FROM '<filename>'",
                     #    }
                     #}```"""
+                    print('FILE TO DUCKDB')
                     if not _conf.get('duckdb'):
-                         _conf['duckdb'] = copy.deepcopy(_conf.get('params'))
+                        _conf['duckdb'] = copy.deepcopy(_conf.get('params'))
                     return await self._duckdb(_input, _etlrb, _conf, _conf_etlrb)
                 elif _conf.get('type') == 'excel-parts':
                     #"""```json
