@@ -185,10 +185,10 @@ class Etl:
                 'cond': '=', 
                 'value': _output.get('etl_rbase_output_id', 'none-founded')
             }]
-            self.params['data']['order_by'] = [{
-                'field': 'field_order', 
-                'order': 'ASC'
-            }]
+            self.params['data']['order_by'] = [
+                {'field': 'field_order',  'order': 'ASC'},
+                {'field': 'etl_rb_output_field_id',  'order': 'ASC'}
+            ]
             _crud = Crud(self.conf, self.params, self.db, self.i18n)
             _read = await _crud.read()
             if not _read.get('success'): # IN CASE OF ERR
@@ -197,6 +197,7 @@ class Etl:
                 return {'success': False, 'msg': self.i18n('output-no-fields', name = _output.get('etl_rbase_output', ''), msg = _read.get('msg'))}
             else:
                 _output_fields = _read.get('data', [])
+                #print(list(map(lambda f: str(f.get('field_order')) + '->' + str(f.get('etl_rb_output_field')), _output_fields)))
                 query_parts = {}
                 for _field in _output_fields:
                     query_parts[_field['etl_rb_output_field']] = {
@@ -218,7 +219,7 @@ class Etl:
                     date_ref = [ date_ref ]
                 dates = [_dt if isinstance(_dt, (datetime.datetime, datetime.date)) else parser.parse(_dt) for _dt in date_ref]
                 sql = _qd.set_date(sql, dates)
-                # print(sql)
+                #print(sql)
                 if _output.get('output_type_id') == 1:                    
                     sql_drop = text(f'DROP TABLE IF EXISTS "{_output.get("destination_table")}"')
                     if _output.get('append_it', False) is True:
@@ -1484,7 +1485,7 @@ class Etl:
                     # DATABASE SCHEMA INFO 
                     patt = r'INSERT.+?INTO.+?'
                     table = re.sub(patt, '', _match_insert_patt[0])
-                    print(table)
+                    #print(table)
                     _db_columns_list = []
                     #_db_columns_types = {}
                     sql_column = f"SELECT * FROM {table} LIMIT 10"
