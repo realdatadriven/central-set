@@ -305,7 +305,8 @@
         "available_queries": "Queries Disponiveis",
         "load_query_data": "Carregar informações do query",
         "item_at_index": "Item no indice",
-        "no_query_setup": "Sem query preparado no separador de dados!"
+        "no_query_setup": "Sem query preparado no separador de dados!",
+        "edit_cnf": "Editar Config"
     },
     "fmrt": {
         "date": "DD/MM/YYYY",

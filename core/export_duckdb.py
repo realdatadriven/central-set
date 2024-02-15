@@ -90,38 +90,56 @@ class ExportDucdb:
             conn = duckdb.connect(database, read_only = False, config = {})
             if not len(_details) > 0:
                 # LOAD EXTENTIONS
+                _extras = ''
                 if ext in ['.xlsx'] and not _conf.get('extentions'):
-                    _conf['extentions'] = ['spatial']
+                    _conf['extentions'] = ['spatial']                
                 if not _conf.get('extentions'):
                     pass
                 elif isinstance(_conf.get('extentions'), list):
                     for extention in _conf.get('extentions'):
+                        print(extention)
                         try:
                             conn.install_extension(extention)
+                        except Exception as _err:
+                            #conn.close()
+                            *_, exc_tb = sys.exc_info()
+                            py_fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                            print('DEBUG INF DUCKDB EXTENTIONS INSTALL: ', extention, str(_err), py_fname, exc_tb.tb_lineno)
+                            #return {'success': False, 'msg': self.i18n('duckdb-extention-faild', extention = extention, err = str(_err))}
+                        try:
                             conn.load_extension(extention)
                         except Exception as _err:
-                            conn.close()
+                            #conn.close()
                             *_, exc_tb = sys.exc_info()
-                            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                            print('DEBUG INF DUCKDB EXTENTIONS: ', str(_err), fname, exc_tb.tb_lineno)
-                            return {'success': False, 'msg': self.i18n('duckdb-extention-faild', extention = extention, err = str(_err))}
+                            py_fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                            print('DEBUG INF DUCKDB EXTENTIONS LOAD: ', extention, str(_err), py_fname, exc_tb.tb_lineno)
+                            #return {'success': False, 'msg': self.i18n('duckdb-extention-faild', extention = extention, err = str(_err))}
                 # SQL
                 sql = _data.get('sql', _data.get('query'))
                 sql = _qd.set_date(sql, dates = date_ref)
                 patt = r'COPY.+?\(.+\).+TO+.\'.+\''
                 _has_copy_already = re.findall(patt, re.sub(r'\n', ' ', sql))
+                filename = fname
+                _export_full_path = f'{_path}/{filename}'  
                 if len(_has_copy_already) > 0:
                     pass
+                elif ext in ['.xlsx']:
+                    sql = f"""COPY ({sql}) TO '<fname>' WITH (FORMAT GDAL, DRIVER 'xlsx')"""
+                    if os.path.exists(_export_full_path):
+                        try:
+                            os.remove(_export_full_path)
+                        except FileNotFoundError:
+                            print(f"{_export_full_path} not found.")
+                        except Exception as e:
+                            print(f"An error occurred: {e}")
                 else:
-                    sql = f"""COPY ({sql}) TO '<fname>'"""
-                filename = fname
-                _export_full_path = f'{_path}/{filename}'                
+                    sql = f"""COPY ({sql}) TO '<fname>'"""           
                 #_path = os.path.normpath(_path).encode("unicode_escape").decode("utf8")
                 _format = _conf.get('format', '.csv')
                 sql = re.sub(r'<filename>|<fname>', _export_full_path, sql)
                 sql = _qd.set_date(sql, date_ref)
                 try:
-                    # print(sql)
+                    print(sql)
                     conn.sql(sql)
                     conn.close()
                 except Exception as _err:

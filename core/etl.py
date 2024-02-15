@@ -1311,7 +1311,8 @@ class Etl:
             #url = URL.create(**{"drivername": "duckdb", "database": database})
             #engine = create_engine(url, echo = False)
             _qd = QueryDoc(query_parts = {})
-            conn = duckdb.connect(database, read_only = False, config = {'memory_limit': '500mb'})
+            #conn = duckdb.connect(database, read_only = False, config = {'memory_limit': '500mb'})
+            conn = duckdb.connect(database, read_only = False)
             if ext in ['.xlsx'] and not _conf['duckdb'].get('extentions'):
                 _conf['duckdb']['extentions'] = ['spatial']
             # REGISTER FILESYSTEMS
