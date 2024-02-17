@@ -131,7 +131,7 @@ class ExportDucdb:
                         except FileNotFoundError:
                             print(f"{_export_full_path} not found.")
                         except Exception as e:
-                            print(f"An error occurred: {e}")
+                            print(f"An error occurred: {str(e)}")
                 else:
                     sql = f"""COPY ({sql}) TO '<fname>'"""           
                 #_path = os.path.normpath(_path).encode("unicode_escape").decode("utf8")
