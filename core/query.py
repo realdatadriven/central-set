@@ -86,10 +86,11 @@ class Query:
                     where_val = f'{field.get("where_val")}'
                     skip = False
                     if field.get('where_cond') in ['LIKE', 'NOT LIKE']:
-                        if where_val.indexOf('%') != -1:
+                        if where_val.find('%') != -1:
                             where_val = f'{where_val}'
                         else:
                             where_val = f'''\'%{field.get("where_val")}%\''''
+                            where_val = f'''%{field.get("where_val")}%'''
                     elif field.get('where_cond') in ['IN', 'NOT IN']:
                         _ins = where_val.split(';')
                         if len(_ins) > 1:

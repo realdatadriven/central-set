@@ -1,7 +1,7 @@
 {
-    "app_name": "Data Driven APP",
+    "app_name": "Central Set",
     "company_name": "Real Data Driven",
-    "company_website": "http://www.fake-url.online/",
+    "company_website": "https://github.com/realdatadriven",
     "url": "conf/conf.json",
     "api": "http://localhost:8080/dyn_api",
     "ws_api": "ws://localhost:8080/ws",
