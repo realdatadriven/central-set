@@ -1,4 +1,11 @@
 '''Query'''
+# pylint: disable=unused-variable
+# pylint: disable=line-too-long
+# pylint: disable=wrong-import-order
+# pylint: disable=broad-exception-caught
+# pylint: disable=unused-import
+# pylint: disable=invalid-name
+# pylint: disable=trailing-whitespace
 import os
 import sys
 import datetime
