@@ -305,7 +305,8 @@
         "available_queries": "Available Queries",
         "load_query_data": "Load query data",
         "item_at_index": "Item at index",
-        "no_query_setup": "No query setup at the data tab!"
+        "no_query_setup": "No query setup at the data tab!",
+        "edit_cnf": "Edit Config"
     },
     "fmrt": {
         "date": "YYYY/MM/DD",

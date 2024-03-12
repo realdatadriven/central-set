@@ -1,4 +1,11 @@
 '''Query'''
+# pylint: disable=unused-variable
+# pylint: disable=line-too-long
+# pylint: disable=wrong-import-order
+# pylint: disable=broad-exception-caught
+# pylint: disable=unused-import
+# pylint: disable=invalid-name
+# pylint: disable=trailing-whitespace
 import os
 import sys
 import datetime
@@ -86,10 +93,11 @@ class Query:
                     where_val = f'{field.get("where_val")}'
                     skip = False
                     if field.get('where_cond') in ['LIKE', 'NOT LIKE']:
-                        if where_val.indexOf('%') != -1:
+                        if where_val.find('%') != -1:
                             where_val = f'{where_val}'
                         else:
                             where_val = f'''\'%{field.get("where_val")}%\''''
+                            where_val = f'''%{field.get("where_val")}%'''
                     elif field.get('where_cond') in ['IN', 'NOT IN']:
                         _ins = where_val.split(';')
                         if len(_ins) > 1:

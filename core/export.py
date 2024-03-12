@@ -389,25 +389,32 @@ class Export:
                                     _wb = xl.load_workbook(filename = _tmpl_path, keep_links = False)
                                 else:
                                     _wb = xl.load_workbook(filename = _tmpl_path, keep_links = False, keep_vba = True)
-                                xl_writer = pd.ExcelWriter(fname, engine = 'openpyxl') # pylint: disable=abstract-class-instantiated
-                                xl_writer.book = _wb
+                                #xl_writer = pd.ExcelWriter(fname, engine = 'openpyxl') # pylint: disable=abstract-class-instantiated
+                                #xl_writer.book = _wb
                                 if _conf('type') in ['xlwriter'] and _conf('sheets'):
-                                    _conf_sheets = _conf('sheets', {})
-                                    for _detail in _details:
-                                        _sheet_name = _detail.get('dest_sheet_name')
-                                        _args = {}
-                                        _aux = {'startcol': 0, 'startrow': 2}
-                                        for _key in ['index', 'header', 'startcol', 'startrow']:
-                                            _args[_key] = _conf_sheets.get(_sheet_name, {}).get(_key, _aux.get(_key, False))
-                                        formats = _conf_sheets.get(_sheet_name, {}).get('formats', None)
-                                        _df_aux = pd.read_sql(text(_detail.get('sql_export_query')), con = conn)
+                                    _wb.save(fname)
+                                    _wb.close()
+                                    with pd.ExcelWriter(fname, engine = 'openpyxl', mode = 'a', if_sheet_exists = 'overlay') as xl_writer:
+                                        _conf_sheets = _conf('sheets', {})
+                                        for _detail in _details:
+                                            _sheet_name = _detail.get('dest_sheet_name')
+                                            _args = {}
+                                            _aux = {'startcol': 0, 'startrow': 2}
+                                            for _key in ['index', 'header', 'startcol', 'startrow']:
+                                                _args[_key] = _conf_sheets.get(_sheet_name, {}).get(_key, _aux.get(_key, False))
+                                            formats = _conf_sheets.get(_sheet_name, {}).get('formats', None)
+                                            _df_aux = pd.read_sql(text(_detail.get('sql_export_query')), con = conn)
+                                            try:
+                                                _df_aux.to_excel(xl_writer, sheet_name = _sheet_name, **_args)
+                                                if formats:
+                                                    try:
+                                                        self.apply_format(xl_writer.sheets[_sheet_name], formats)
+                                                    except Exception as _err2:# pylint: disable=broad-exception-caught
+                                                        str(_err2) 
+                                            except Exception as _err:# pylint: disable=broad-exception-caught
+                                                str(_err)                                    
                                         try:
-                                            _df_aux.to_excel(xl_writer, sheet_name = _sheet_name, **_args)
-                                            if formats:
-                                                self.apply_format(xl_writer.sheets[_sheet_name], formats)
-                                        except Exception as _err:# pylint: disable=broad-exception-caught
-                                            str(_err)                                    
-                                        try:
+                                            _wb.save(fname)
                                             for ws_name in _wb.sheetnames:
                                                 _ws = _wb[ws_name]
                                                 if _ws._pivots: # pylint: disable=protected-access
@@ -415,12 +422,11 @@ class Export:
                                                     for pvt in _ws._pivots: # pylint: disable=protected-access
                                                         print('PIVOT:', pvt.name)
                                                         pvt.cache.refreshOnLoad = True
+                                            _wb.close()
                                         except Exception as _err:# pylint: disable=broad-exception-caught
                                             *_, exc_tb = sys.exc_info()
                                             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                                             print('DEBUG INF: ', str(_err), fname, exc_tb.tb_lineno)
-                                        _wb.save(fname)
-                                        _wb.close()
                                 elif _conf('type') in ['spreadsheet_form']:
                                     pass
                                 else:
