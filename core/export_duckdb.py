@@ -61,11 +61,12 @@ class ExportDucdb:
             _export = _data.get('export', {})
             _details = _data.get('data', [])
             fname = _data.get('file')
+            compress = _data.get('compress', _conf.get('compress'))
             compress_format = _data.get('compress_format', _conf.get('compress_format'))
             # template = _data.get('template')
             date_ref = _data.get('date_ref') if isinstance(_data.get('date_ref'), (datetime.datetime, datetime.date)) else parser.parse(_data.get('date_ref', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
             basename, ext = os.path.splitext(fname)
-            if compress_format:
+            if compress_format and compress:
                 fname = f'{fname}.{compress_format}'
             upload_path = self.conf.get('UPLOAD')
             tmp = 'tmp'
@@ -74,7 +75,8 @@ class ExportDucdb:
             except FileExistsError as _err:
                 os.mkdir(f'{os.getcwd()}/{upload_path}/{tmp}')
             # _path = f'{os.getcwd()}/{upload_path}/{tmp}/{fname}'
-            _path = f'{os.getcwd()}/{upload_path}/{tmp}'
+            _path = f'{os.getcwd()}/{upload_path}/{tmp}'            
+            _path = os.path.normpath(_path).encode("unicode_escape").decode("utf8")
             _tempdir = tempfile.gettempdir()
             database = _data.get('db', _data.get('database', _export.get('database', _etlrb.get('database'))))
             _db_path, _db_file = os.path.split(database)
@@ -113,7 +115,8 @@ class ExportDucdb:
                 else:
                     sql = f"""COPY ({sql}) TO '<fname>'"""
                 filename = fname
-                _export_full_path = f'{_path}/{filename}'
+                _export_full_path = f'{_path}/{filename}'                
+                #_path = os.path.normpath(_path).encode("unicode_escape").decode("utf8")
                 _format = _conf.get('format', '.csv')
                 sql = re.sub(r'<filename>|<fname>', _export_full_path, sql)
                 sql = _qd.set_date(sql, date_ref)

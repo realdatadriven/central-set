@@ -32,6 +32,12 @@ from fsspec import filesystem
 import subprocess
 import shutil
 from pathlib import Path
+from py_rust_odbc_csv import odbc_csv # pylint: disable=no-name-in-module
+from werkzeug.utils import secure_filename
+try:
+    import win32com.client
+except Exception as _err:
+    win32com = None
 
 from core.db import DB
 from core.crud import Crud
@@ -53,7 +59,7 @@ class Etl:
         try:
             _data = self.params['data']
             _input = _data['data']
-            _etlrb = _data.get('selected_etlrb')
+            _etlrb = _data.get('selected_etlrb', {})
             _conf = {}
             _conf_etlrb = {}
             if not _input.get('active'):
@@ -64,7 +70,7 @@ class Etl:
                         _conf = json.loads(_input.get('etl_rbase_input_conf'))
                     elif isinstance(_input.get('etl_rbase_input_conf'), dict):
                         _conf = _input.get('etl_rbase_input_conf')
-                    # print('CONF:', _conf)
+                    #print('CONF:', _conf)
                 except Exception as _err:# pylint: disable=broad-exception-caught
                     pass
             if _etlrb.get('etl_report_base_conf'):
@@ -81,7 +87,7 @@ class Etl:
             date_ref = _input.get('date_ref')
             # print('date_ref:', date_ref)
             _path = f'{os.getcwd()}/{self.conf.get("UPLOAD")}'
-            if is_tmp is True:
+            if is_tmp is True or _input.get('temp') or _input.get('tmp'):
                 _path = tempfile.gettempdir()
             file_exists = None
             if fname:
@@ -90,16 +96,19 @@ class Etl:
                 return  {'success': False, 'msg': self.i18n('file-not-founded', fname = fname)}
             if file_exists or _conf.get('type') in ['file-duckdb', 'duckdb']: # EXTRACT FROM FILE
                 print('IS FILE', fname)
-                if _conf.get('type') in ['file-duckdb', 'duckdb']:
+                if _conf.get('type') in ['file-duckdb', 'duckdb'] or _conf.get('duckdb'):
                     #"""```json
                     #{
                     #    "type": "file-duckdb",
                     #    "params": {
                     #        "database": "path 2 databse",
                     #        "extentions": ["spatial"],
-                    #        "sql": "CREATE OR REPLACE TBL AS SELECT * FROM '<filename>'",
+                    #        "sql": "CREATE OR REPLACE TABLE TBL AS SELECT * FROM '<filename>'",
                     #    }
                     #}```"""
+                    #print('FILE TO DUCKDB')
+                    if not _conf.get('duckdb'):
+                        _conf['duckdb'] = copy.deepcopy(_conf.get('params'))
                     return await self._duckdb(_input, _etlrb, _conf, _conf_etlrb)
                 elif _conf.get('type') == 'excel-parts':
                     #"""```json
@@ -124,6 +133,8 @@ class Etl:
                 return await self._from_ftp(_input, _etlrb, _conf, _conf_etlrb)
             elif _conf.get('type') == 'webscrap': # EXTRACT FROM WEBSCRAPING
                 return await self._from_webscrap(_input, _etlrb, _conf, _conf_etlrb)
+            elif _conf.get('type') == 'outlook_mail': # OUTLOOK MAIL
+                return await self._from_outlook(_input, _etlrb, _conf, _conf_etlrb)
             else:
                 if _conf.get('type'):
                     return {'success': False, 'msg': self.i18n('type-not-suported-yet', _type = _conf.get('type'))}
@@ -175,10 +186,10 @@ class Etl:
                 'cond': '=', 
                 'value': _output.get('etl_rbase_output_id', 'none-founded')
             }]
-            self.params['data']['order_by'] = [{
-                'field': 'field_order', 
-                'order': 'ASC'
-            }]
+            self.params['data']['order_by'] = [
+                {'field': 'field_order',  'order': 'ASC'},
+                {'field': 'etl_rb_output_field_id',  'order': 'ASC'}
+            ]
             _crud = Crud(self.conf, self.params, self.db, self.i18n)
             _read = await _crud.read()
             if not _read.get('success'): # IN CASE OF ERR
@@ -187,6 +198,7 @@ class Etl:
                 return {'success': False, 'msg': self.i18n('output-no-fields', name = _output.get('etl_rbase_output', ''), msg = _read.get('msg'))}
             else:
                 _output_fields = _read.get('data', [])
+                #print(list(map(lambda f: str(f.get('field_order')) + '->' + str(f.get('etl_rb_output_field')), _output_fields)))
                 query_parts = {}
                 for _field in _output_fields:
                     query_parts[_field['etl_rb_output_field']] = {
@@ -208,7 +220,7 @@ class Etl:
                     date_ref = [ date_ref ]
                 dates = [_dt if isinstance(_dt, (datetime.datetime, datetime.date)) else parser.parse(_dt) for _dt in date_ref]
                 sql = _qd.set_date(sql, dates)
-                # print(sql)
+                #print(sql)
                 if _output.get('output_type_id') == 1:                    
                     sql_drop = text(f'DROP TABLE IF EXISTS "{_output.get("destination_table")}"')
                     if _output.get('append_it', False) is True:
@@ -912,7 +924,7 @@ class Etl:
             elif isinstance(_input.get('date_ref'), str):
                 date_ref = parser.parse(_input.get('date_ref'))
             _path = f'{os.getcwd()}/{self.conf.get("UPLOAD")}'
-            if is_tmp is True:
+            if is_tmp is True or _input.get('temp') or _input.get('tmp'):
                 _path = tempfile.gettempdir()
             df = pd.DataFrame([])
             basename, ext = os.path.splitext(fname)
@@ -1255,12 +1267,19 @@ class Etl:
             _path = f'{os.getcwd()}/{self.conf.get("UPLOAD")}'
             if is_tmp is True:
                 _path = tempfile.gettempdir()
+            _path = os.path.normpath(_path).encode("unicode_escape").decode("utf8")
             basename, ext = os.path.splitext(fname)
             file_ref_patts = [
                 {'patt': r'(\d{8})(?!.*\d+)', 'fmrt': '%Y%m%d'},
                 {'patt': r'(\d{6})(?!.*\d+)', 'fmrt': '%y%m%d'},
                 {'patt': r'(\d{4})(?!.*\d+)', 'fmrt': '%Y%m'}
             ]
+            pats = {
+                'file': re.compile(r'<filename>|<fname>|<file_name>|{filename}|{fname}|{file_name}', re.I),
+                'table': re.compile(r'<table>|<table_name>|<tablename>|{table}|{table_name}|{tablename}', re.I)
+            }
+            if not _conf.get('duckdb'):
+                _conf['duckdb'] = copy.deepcopy(_conf.get('params'))
             file_ref = None
             for patt in file_ref_patts:
                 match = re.findall(patt.get('patt'), basename)
@@ -1350,7 +1369,7 @@ class Etl:
             # ATACH THE DB IN CASE THE FILE IS ANTHER DUCKDB FILE
             if ext in ['.duckdb']:
                 sql = f"ATTACH '<fname>' AS {basename}"
-                sql = re.sub(r'<filename>|<fname>', f'{_path}/{fname}', sql)
+                sql = re.sub(pats['file'], f'{_path}/{fname}', sql)
                 sql = _qd.set_date(sql, date_ref)
                 print('ATTACHING:', sql)
                 try:
@@ -1367,28 +1386,31 @@ class Etl:
             elif isinstance(_conf['duckdb'].get('valid'), list):
                 for valid in _conf['duckdb'].get('valid'):
                     sql = valid.get('sql', valid.get('query'))
+                    # print(f'{_path}/{fname}')
+                    sql = re.sub(pats['file'], f'{_path}/{fname}', sql)
+                    sql = re.sub(pats['table'], _input.get('destination_table'), sql)
                     sql = _qd.set_date(sql, date_ref)
                     sql = self.set_str_env(sql)
-                    print('DUCKDB VALIDATION: ', sql)
+                    # print('DUCKDB VALIDATION: ', sql)
                     try:
-                        df = conn.sql(sql).fetchall().df()
+                        df = conn.sql(sql).df()
                         rule = valid.get('rule')
+                        msg = valid.get('msg', rule)
+                        msg = _qd.set_date(msg, date_ref)
+                        msg = re.sub(pats['file'], f'{fname}', msg)
+                        msg = re.sub(pats['table'], _input.get('destination_table'), msg)
                         if rule == 'throw_if_not_empty' and df.shape[0] > 0:
-                            msg = valid.get('msg', rule)
-                            msg = _qd.set_date(msg, date_ref)
-                            msg = re.sub(r'<filename>|<fname>', f'{fname}', msg)
                             return {'success': False, 'msg': msg}
                         elif rule == 'throw_if_empty' and df.shape[0] == 0:
-                            msg = valid.get('msg', rule)
-                            msg = _qd.set_date(msg, date_ref)
-                            msg = re.sub(r'<filename>|<fname>', f'{fname}', msg)
                             return {'success': False, 'msg': msg}
                     except Exception as _err:
-                        conn.close()
                         *_, exc_tb = sys.exc_info()
-                        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                        print('DEBUG INF DUCKDB VALIDATION QUERIES: ', str(_err), fname, exc_tb.tb_lineno)
-                        return {'success': False, 'msg': self.i18n('duckdb-valid-faild', sql = sql, err = str(_err))}
+                        _fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                        print('DEBUG INF DUCKDB VALIDATION QUERIES: ', str(_err), _fname, exc_tb.tb_lineno)
+                        _chk_first_time = re.findall(f"{_input.get('destination_table')}.+does not exist", str(_err))
+                        if len(_chk_first_time) == 0:
+                            conn.close()
+                            return {'success': False, 'msg': self.i18n('duckdb-valid-faild', sql = sql, err = str(_err))}
             # EXECUTE THE MAIN QUERY
             if _conf['duckdb'].get('query'):
                 sql = _conf['duckdb'].get('query')
@@ -1396,10 +1418,8 @@ class Etl:
             elif _conf['duckdb'].get('sql'):
                 sql = _conf['duckdb'].get('sql')
                 sql_bak = _conf['duckdb'].get('sql')
-            patt = r'<filename>|<fname>|<file_name>|{filename}|{fname}|{file_name}'
-            sql = re.sub(patt, f'{_path}/{fname}', sql)
-            patt = r'<table>|<table_name>|<tablename>|{table}|{table_name}|{tablename}'
-            sql = re.sub(patt, _input.get('destination_table'), sql)
+            sql = re.sub(pats['file'], f'{_path}/{fname}', sql)
+            sql = re.sub(pats['table'], _input.get('destination_table'), sql)
             sql = _qd.set_date(sql, date_ref)
             sql = self.set_str_env(sql)
             # IF THE DATA IS GOIN TO BE APPENDED CHECK IF ALL THE COLUMNS EXISTS
@@ -1432,10 +1452,11 @@ class Etl:
                     df = conn.sql(sql_table_chk).df()
                     if df.shape[0] == 0:
                         _table_already_created = False
-                        # print(1, sql)
+                        #print(1, sql)
                         sql = re.sub(patt, 'CREATE TABLE ', sql)
                         sql = re.sub(table, f'{table} AS ', sql)
-                        # print(2, sql)
+                        sql = re.sub(r'\bAS\s+AS\b', 'AS',sql)
+                        #print(2, sql)
                 except Exception as _err:
                     *_, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -1465,6 +1486,7 @@ class Etl:
                     # DATABASE SCHEMA INFO 
                     patt = r'INSERT.+?INTO.+?'
                     table = re.sub(patt, '', _match_insert_patt[0])
+                    #print(table)
                     _db_columns_list = []
                     #_db_columns_types = {}
                     sql_column = f"SELECT * FROM {table} LIMIT 10"
@@ -1502,10 +1524,8 @@ class Etl:
                         # REPLACE SELECT * FOR SELECT **cols IN THE IMPORT STATMENT
                         #print(cols, sql_bak)
                         sql = re.sub(r'\*', cols, sql_bak)
-                        patt = r'<filename>|<fname>|<file_name>|{filename}|{fname}|{file_name}'
-                        sql = re.sub(patt, f'{_path}/{fname}', sql)
-                        patt = r'<table>|<table_name>|<tablename>|{table}|{table_name}|{tablename}'
-                        sql = re.sub(patt, _input.get('destination_table'), sql)
+                        sql = re.sub(pats['file'], f'{_path}/{fname}', sql)
+                        sql = re.sub(pats['table'], _input.get('destination_table'), sql)
                         sql = _qd.set_date(sql, date_ref)
                         sql = self.set_str_env(sql)
             # RUN IMPORT QUERY
@@ -1565,7 +1585,7 @@ class Etl:
                 return DB(self.conf, self.params)
         return DB(self.conf, self.params)
     async def _from_db(self, _input, _etlrb, _conf, _conf_etlrb):
-        '''extratract from db'''
+        '''extract from db'''
         try:
             date_ref = _input.get('date_ref')
             if isinstance(_input.get('date_ref'), list):
@@ -1663,7 +1683,7 @@ class Etl:
                 sql = _conf.get('sql')
             sql = self.set_query_date(sql, date_ref)
             # print(sql, engine.url, _database)
-            print(sql)
+            #print(sql)
             chunksize = 50 * 1000
             if _conf.get('chunksize'):
                 chunksize = _conf.get('chunksize')
@@ -1696,25 +1716,21 @@ class Etl:
                 date_ref = [parser.parse(d) if isinstance(d, str) else d for d in _input.get('date_ref')]
             elif isinstance(_input.get('date_ref'), str):
                 date_ref = parser.parse(_input.get('date_ref'))
-            _database = copy.deepcopy(_conf.get('params'))
-            _db = await self._get_new_db(_database)
-            if isinstance(_db, sa.engine.base.Engine):
-                engine = _db
-            else:
-                engine = _db.get_engine(_database)
             sql = f"""SELECT * FROM "{_input.get('destination_table')}";"""
             if _conf.get('query'):
                 sql = _conf.get('query')
             elif _conf.get('sql'):
                 sql = _conf.get('sql')
             sql = self.set_query_date(sql, date_ref)
-            bin_path = r'rust-odbc-csv'
-            conn_str = engine.url
-            print(bin_path, conn_str)
-            res = subprocess.check_output([bin_path, conn_str, sql.strip(), '50000', _input.get('destination_table')])
+            conn_str = self.set_str_env(_conf.get('params', {}).get('odbc_conn'))
+            #print(conn_str, sql)
+            #bin_path = r'rust-odbc-csv'
+            #res = subprocess.check_output([bin_path, conn_str, sql.strip(), '50000', _input.get('destination_table')])
+            res = odbc_csv([conn_str, sql])
             res_json = json.loads(res)
             if res_json.get('success') is True and res_json.get('fname'):
-                _input['file'] = res_json.get('fname')
+                #print(res_json)
+                _input['file'] = os.path.split(res_json.get('fname'))[1]
                 _input['save_only_temp'] = True
                 return await self._duckdb(_input, _etlrb, _conf, _conf_etlrb)
             return res 
@@ -1725,7 +1741,7 @@ class Etl:
             return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
     # FTP
     async def _from_ftp(self, _input, _etlrb, _conf, _conf_etlrb):
-        '''extratract ftp'''
+        '''extract ftp'''
         try:
             _patt = re.compile(r'@ENV\..+')
             _params = _conf['params']
@@ -1772,7 +1788,7 @@ class Etl:
             return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
     # HTTP
     async def _from_webscrap(self, _input, _etlrb, _conf, _conf_etlrb):
-        '''# extratract webscrap
+        '''# extract webscrap
         input config:
         ```json
             {
@@ -1807,6 +1823,198 @@ class Etl:
             _df = pd.read_html(str(table), flavor="bs4")[0]
             if _params.get('columns', _params.get('names')):
                 _df.columns = _params.get('columns', _params.get('names'))        
+            return await self._run_import(_df, _input, _etlrb, _conf, _conf_etlrb)
+        except Exception as _err:# pylint: disable=broad-exception-caught
+            *_, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print('DEBUG INF: ', str(_err), fname, exc_tb.tb_lineno)
+            return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
+    # WEB MAIL
+    async def _from_outlook(self, _input, _etlrb, _conf, _conf_etlrb):
+        '''# extract outlook
+        input config:
+        ```json
+            {
+                "type": "outlook_mail",
+                "params": {
+                    "return_data": false,
+                    "subject_filter": "TASK_NAME",
+                    "body_filter": null,
+                    "sender_filter": null,
+                    "sender_email_filter": null,
+                    "recipients_filter": null,
+                    "recipients_email_filter": null,
+                    "date_filter": true,
+                    "save_attachemt": true,
+                    "main_folder": ["user@domai.com"],
+                    "folders": ["A Receber", "Inbox"],
+                    "patt_title_match": "TASK_NAME.\\d{4}.?\\d{2}.?\\d{2}",
+                    "patt_title_exclude": "Não.+entregue.+|Nao.+entregue.+|Not.+delivered",
+                    "fields": [
+                        {
+                            "name": "date_ref",
+                            "type": "date",
+                            "patt": "\\d{4}.?\\d{2}.?\\d{2}",
+                            "where": "subject",
+                            "format": "%Y%m%d"
+                        }
+                    ]
+                }
+            }
+        ```
+        '''
+        try:
+            _patt = re.compile(r'@ENV\..+')
+            _params = _conf['params']
+            for _key in _params:
+                match_env = re.findall(_patt, str(_params[_key]))
+                if len(match_env) > 0:
+                    _env = re.sub(r'@ENV\.', '', str(match_env[0]))
+                    try:
+                        _params[_key] = os.environ.get(_env)
+                    except Exception as _err:# pylint: disable=broad-exception-caught
+                        pass
+            date_ref = parser.parse(_input.get('date_ref'))
+            #print(_params)
+            #PROCESS EMAILS
+            patt_title_match = re.compile(_params.get('patt_title_match'), re.IGNORECASE)
+            #print(patt_title_match)
+            _path = f'{os.getcwd()}/{self.conf.get("UPLOAD")}/tmp'
+            items = []
+            try:
+                #outlook  = win32com.client.Dispatch("Outlook.Application", pythoncom.CoInitialize()).GetNamespace("MAPI")
+                outlook  = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+                for folder in outlook.Folders:
+                    # MAIN FOLDER
+                    #print(1, folder.Name)
+                    if not _params.get('main_folder'):
+                        continue
+                    elif folder.Name not in _params.get('main_folder') and str(folder.Name).lower() not in _params.get('main_folder'):
+                        continue
+                    recip = outlook.CreateRecipient(str(folder))
+                    # SUBFORDERS
+                    for sub_folder in  folder.Folders:
+                        #print(2, sub_folder.Name)
+                        if not _params.get('folders'):
+                            continue
+                        elif sub_folder.Name not in _params.get('folders') and sub_folder.Name.lower() not in _params.get('folders'):
+                            continue
+                        # LOOP MSG's
+                        messages = sub_folder.Items
+                        if _params.get('subject_filter'):
+                            _filter = _params.get('subject_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:subject\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('body_filter'):
+                            _filter = _params.get('body_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:textdescription\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('sender_email_filter'):
+                            _filter = _params.get('sender_email_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:fromemail\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('sender_filter'):
+                            _filter = _params.get('sender_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:fromname\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('recipients_email_filter'):
+                            _filter = _params.get('recipients_email_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:displayto\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('recipients_filter'):
+                            _filter = _params.get('recipients_filter')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:displayto\" ci_phrasematch '{_filter}'"
+                            messages = messages.Restrict(filter_str)
+                            #print(filter_str)
+                        if _params.get('date_filter'):
+                            _date = date_ref.strftime('%Y-%m-%d')
+                            filter_str = f"@SQL=\"urn:schemas:httpmail:datereceived\" >= '{_date}'"
+                            #print(filter_str)
+                            messages = messages.Restrict(filter_str)
+                        message  = messages.GetFirst()
+                        while message:
+                            try:
+                                d = {}
+                                d['subject'] = str(getattr(message, 'Subject', '<UNKNOWN>'))
+                                #print(d['subject'])
+                                try:
+                                    d['sent_on']  = getattr(message, 'SentOn', '<UNKNOWN>').strftime('%Y-%m-%d %H:%M:%S')
+                                except Exception as _err: # pylint: disable=broad-exception-caught
+                                    d['sent_on']  = str(getattr(message, 'SentOn', '<UNKNOWN>'))
+                                    #continue
+                                # d['EntryID'] = getattr(message, 'EntryID', '<UNKNOWN>')
+                                d['sender']  = str(getattr(message, 'Sender', '<UNKNOWN>'))
+                                d['size']    = str(getattr(message, 'Size', '<UNKNOWN>'))
+                                d['body']    = str(getattr(message, 'Body', '<UNKNOWN>'))
+                                d['body']    = re.sub(r'[\n\r]{2,}', '\n', d['body'])
+                                d['body']    = re.sub(r'[\n\r]{2,}', '\n', d['body'])
+                                #print(d['Body'])
+                                #break
+                                match = re.findall(patt_title_match, d['subject'])
+                                match_exclude = []
+                                if _params.get('patt_title_exclude'):
+                                    patt_title_exclude = re.compile(_params.get('patt_title_exclude'), re.IGNORECASE)
+                                    match_exclude = re.findall(patt_title_exclude, d['subject'])
+                                if len(match) > 0 and len(match_exclude) == 0:
+                                    recipients = message.Recipients
+                                    _recipients = []
+                                    for recipient in recipients:
+                                        _recipients.append(recipient.Name)
+                                    d['recipients'] = ';'.join(_recipients)
+                                    if _params.get('save_attachemt'):
+                                        try:
+                                            _fname = f'{_path}/{secure_filename(d["subject"])}.msg'
+                                            if not os.path.exists(_fname):
+                                                message.SaveAs(_fname, 3)
+                                            d['fname'] = f'tmp/{secure_filename(d["subject"])}.msg'
+                                        except Exception as _err:
+                                            print(str(_err))
+                                    # print(folder.Name, sub_folder.Name, d['subject'])
+                                    for field in _params.get('fields'):
+                                        #print(field)
+                                        d[field['name']] = ''
+                                        patt = re.compile(field.get('patt'), re.IGNORECASE)
+                                        match = re.findall(patt, d[field.get('where')])
+                                        if len(match) > 0:
+                                            d[field['name']] = match[0]
+                                            if field.get('replace'):
+                                                d[field['name']] = re.sub(re.compile(field['replace'][0]),  field['replace'][1],str(d[field['name']]))
+                                            d[field['name']] = re.sub(r'\r', ' ', d[field['name']])
+                                            d[field['name']] = re.sub(r'\t', ' ', d[field['name']])
+                                            d[field['name']] = re.sub(r'\n', ' ', d[field['name']])
+                                            d[field['name']] = re.sub(r';', '', d[field['name']])
+                                            if field.get('patt2') and d.get(field['name']):
+                                                patt2 = re.compile(field.get('patt2'), re.IGNORECASE)
+                                                match2 = re.findall(patt2, d.get(field['name']))
+                                                # print(patt2, match2)
+                                                if len(match2) > 0:
+                                                    d[field['name']] = match2[0]
+                                            if field.get('format') and field.get('type') == 'date' and d.get(field['name']):
+                                                try:
+                                                    d[field['name']] = re.sub(r'\s', '', d[field['name']])
+                                                    d[field['name']] = datetime.datetime.strptime(d[field['name']], field.get('format')).strftime('%Y-%m-%d')
+                                                except Exception as e:
+                                                    print(str(e), field['name'], d[field['name']])
+                                    d['main_folder']  = folder.Name
+                                    d['sub_folder']  = sub_folder.Name
+                                    #print(d)
+                                    items.append(dict(d))
+                            except Exception as inst:
+                                exc_type, exc_obj, exc_tb = sys.exc_info()
+                                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                                print('DEBUG INF: ', str(inst), fname, exc_tb.tb_lineno)
+                            message = messages.GetNext()
+                #outlook.close()
+            except Exception as e:
+                print(str(e))
+            if _params.get('return_data') is True:
+                return {'success': True, 'msg': self.i18n('success'), 'data': items}
+            _df = pd.DataFrame(items)       
             return await self._run_import(_df, _input, _etlrb, _conf, _conf_etlrb)
         except Exception as _err:# pylint: disable=broad-exception-caught
             *_, exc_tb = sys.exc_info()
@@ -1921,6 +2129,18 @@ class Etl:
             print('DEBUG INF: ', str(_err), fname, exc_tb.tb_lineno)
             return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
     # SET DATA TO QUIERY STRING
+    def _get_dt_fmrt(self, _format):
+        '''return python date format'''
+        _py_format = _format
+        _frmts = [
+            {'frmt': r'YYYY|AAAA', 'py_fmrt': '%Y'},
+            {'frmt': r'YY|AA', 'py_fmrt': '%y'},
+            {'frmt': r'MM', 'py_fmrt': '%m'},
+            {'frmt': r'DD', 'py_fmrt': '%d'}
+        ]
+        for _fmrt in _frmts:
+            _py_format = re.sub(re.compile(_fmrt['frmt'], re.I), _fmrt['py_fmrt'], _py_format)
+        return _py_format
     def set_query_date(self, query, date_ref):
         '''set query date'''
         patt = re.compile(r"([\"]?\w+[\"]?\.[\"]?\w+[\"]?\s{0,}=\s{0,}'\{.*?\}'|[\"]?\w+[\"]?\s{0,}=\s{0,}'\{.*?\}')", re.IGNORECASE)
@@ -1936,11 +2156,7 @@ class Etl:
             for m in matchs:
                 frmt = re.findall(patt2, m)
                 if len(frmt) > 0:
-                    frmt_final = frmt[0].replace('YYYY','%Y') #FULL YEAR
-                    frmt_final = frmt_final.replace('YY','%y') #YY YEAR
-                    frmt_final = frmt_final.replace('MM','%m') #MONTH YEAR
-                    frmt_final = frmt_final.replace('DD','%d') #DAY YEAR
-                    frmt_final = frmt_final.replace('MMM','%b') #Month
+                    frmt_final = self._get_dt_fmrt(frmt[0])
                     frmt_final = frmt_final.replace('{','').replace('}','')
                     if isinstance(date_ref, list):
                         dts = ','.join([f'{dt.strftime(frmt_final)}' for dt in copy.deepcopy(date_ref)])
@@ -1956,11 +2172,7 @@ class Etl:
         if len(matchs) > 0:
             for m in matchs:
                 frmt = m
-                frmt_final = frmt.replace('YYYY','%Y') #FULL YEAR
-                frmt_final = frmt_final.replace('YY','%y') #YY YEAR
-                frmt_final = frmt_final.replace('MM','%m') #MONTH YEAR
-                frmt_final = frmt_final.replace('DD','%d') #DAY YEAR
-                frmt_final = frmt_final.replace('MMM','%b') #Month
+                frmt_final = self._get_dt_fmrt(frmt)
                 frmt_final = frmt_final.replace('{','').replace('}','')
                 if isinstance(date_ref, list):
                     procc = re.sub(patt, date_ref[0].strftime(frmt_final), m)
@@ -1970,20 +2182,14 @@ class Etl:
                 query = re.sub(patt, procc, query)
         # IN CASE WE DO HAVE TEMP TABLES WITH DATE EXTENTIONS 
         patt = re.compile(
-            r'YYYY.?MM.?DD|AAAA.?MM.?DD|YY.?MM.?DD|AA.?MM.?DD|YYYY.?MM|AAAA.?MM|YY.?MM|AA.?MM|MM.?DD'
+            r'YYYY.?MM.?DD|AAAA.?MM.?DD|YY.?MM.?DD|AA.?MM.?DD|YYYY.?MM|AAAA.?MM|YY.?MM|AA.?MM|MM.?DD|DD.?MM.?YYYY|DD.?MM.?AAAA|DD.?MM.?YY|DD.?MM.?AA'
             , re.IGNORECASE
         )
         matchs = re.findall(patt, query)
         if len(matchs) > 0:
             for m in matchs:
                 frmt = m
-                frmt_final = frmt.replace('YYYY','%Y') #FULL YEAR
-                frmt_final = frmt_final.replace('YY','%y') #YY YEAR
-                frmt_final = frmt_final.replace('AAAA','%Y') #FULL YEAR
-                frmt_final = frmt_final.replace('AA','%y') #YY YEAR
-                frmt_final = frmt_final.replace('MM','%m') #MONTH YEAR
-                frmt_final = frmt_final.replace('DD','%d') #DAY YEAR
-                frmt_final = frmt_final.replace('MMM','%b') #Month
+                frmt_final = self._get_dt_fmrt(frmt)
                 # frmt_final = frmt_final.replace('{','').replace('}','')
                 if isinstance(date_ref, list):
                     procc = re.sub(patt, date_ref[0].strftime(frmt_final), m)
@@ -2022,7 +2228,11 @@ class Etl:
                     busy_timeout = self.conf.get('SQLITE_BUSY_TIMEOUT', 60 * 1000) # 60s / 1m
                     conn.execute(text(f'PRAGMA busy_timeout = {busy_timeout}'))
                 if ref_date_field:
-                    _dts = [d if isinstance(d, str) else d.strftime('%Y-%m-%d') for d in date_ref]
+                    _dt_frmt = '%Y-%m-%d'
+                    if _input.get('date_format_org'):
+                        _dt_frmt = self._get_dt_fmrt(_input.get('date_format_org'))
+                        #print(_input.get('ref_date_field'), _input.get('date_format_org'), _dt_frmt)
+                    _dts = [d if isinstance(d, str) else d.strftime(_dt_frmt) for d in date_ref]
                     sql = sa.delete(sa_table)\
                             .where(sa_table.c[ref_date_field].in_(_dts))
                 else:
@@ -2058,10 +2268,11 @@ class Etl:
                 metadata = sa.MetaData()
             else:
                 engine = _db.get_engine(_database)
-                metadata = self.db.get_metadata(engine)
+                #print(2, engine.url)
+                metadata = _db.get_metadata(engine)
             destination_table = _input.get('destination_table')
             ref_date_field = _input.get('ref_date_field', None)
-            # print(engine.url, destination_table)
+            #print(destination_table, type(metadata), engine.url)
             sa_table = Table(destination_table, metadata, autoload_with = engine)
             with engine.connect() as conn:
                 if engine.driver in ('pysqlite', 'sqlite'):
@@ -2070,7 +2281,11 @@ class Etl:
                     busy_timeout = self.conf.get('SQLITE_BUSY_TIMEOUT', 60 * 1000) # 60s / 1m
                     conn.execute(text(f'PRAGMA busy_timeout = {busy_timeout}'))
                 if ref_date_field:
-                    _dts = [d if isinstance(d, str) else d.strftime('%Y-%m-%d') for d in date_ref]
+                    _dt_frmt = '%Y-%m-%d'
+                    if _input.get('date_format_org'):
+                        _dt_frmt = self._get_dt_fmrt(_input.get('date_format_org'))
+                        #print(_input.get('ref_date_field'), _input.get('date_format_org'), _dt_frmt)
+                    _dts = [d if isinstance(d, str) else d.strftime(_dt_frmt) for d in date_ref]
                     # pylint: disable=not-callable
                     sql = select(func.count(sa_table.c[ref_date_field]))\
                         .select_from(sa_table)\

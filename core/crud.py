@@ -1,7 +1,13 @@
 '''CRUD'''
 import os
 import sys
-import copy
+import copy 
+import datetime
+from dateutil import parser
+import icalendar
+#from icalevents.icalevents import events
+from icalevents import icalparser
+
 
 from core.access import Access
 from core.read import Read
@@ -78,15 +84,15 @@ class Crud:
         try:
             user = self.params.get('user')
             _table = self.params['data'].get('table')
-            # PERMISSIONS  
+            # PERMISSIONS
             self.params['permissions'] = {}
-            if user.get('role_id') != 1:       
+            if user.get('role_id') != 1:      
                 _access = Access(self.conf, self.params, self.db, self.i18n)
                 permissions = await _access.permissions(_table)
                 self.params['permissions'] = permissions
                 # ROW LEVEL ACCESS
                 row_level_tables = await _access.row_level_tables()
-                #print(row_level_tables)
+                #print('row_level_tables:', row_level_tables)
                 row_level_tables = row_level_tables.get('tables')
                 if len(row_level_tables) > 0:
                     self.params['row_level_tables'] = row_level_tables
@@ -181,6 +187,87 @@ class Crud:
                         elif len(_tables) == 0:
                             return {'success': False, 'msg': self.i18n('no-table')}
                         return await _query.run(_tables, _build_query)
+        except Exception as _err:# pylint: disable=broad-exception-caught
+            *_, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print('DEBUG INF: ', str(_err), fname, exc_tb.tb_lineno)
+            return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
+    # PROCESS iCals
+    async def parse_icals(self):
+        '''Parse list of ical in to a list of events'''
+        try:
+            # print(self.params.get('data'))
+            _events_obj = []
+            _evnts = self.params.get('data', {}).get('events', [])
+            _days = self.params.get('data', {}).get('days', 30)
+            _header = self.params.get('data', {}).get('e_header')
+            _tail = self.params.get('data', {}).get('e_tail')
+            start = None
+            if self.params.get('data', {}).get('start'):
+                try:
+                    start = parser.parse(self.params.get('data', {}).get('start'))
+                except Exception as _err:# pylint: disable=broad-exception-caught
+                    print(str(_err))
+            end = None
+            if self.params.get('data', {}).get('end'):
+                try:
+                    end = parser.parse(self.params.get('data', {}).get('end'))
+                except Exception as _err:# pylint: disable=broad-exception-caught
+                    print(str(_err))
+            # print(start, end)
+            for _evnt in _evnts:
+                ical = f"{_header}\n{_evnt.get('ical')}\n{_tail}"
+                try:
+                    parsed_events = icalparser.parse_events(
+                        ical,
+                        start = start,
+                        end = end,
+                        default_span = datetime.timedelta(days = _days)
+                    )
+                    #print(1, _evnt.get('task_id'), len(parsed_events))
+                    for _ical in parsed_events:
+                        try:
+                            calendar = icalendar.Calendar.from_ical(ical)
+                            for event in calendar.walk('VEVENT'):
+                                # print(event.get("SUMMARY"), event.get("DTSTART").dt, event.get("DTEND").dt)
+                                if _ical.summary == event.get("SUMMARY"):
+                                    alarms = event.walk("VALARM")
+                                    _alarms_obj = []
+                                    for alarm in alarms:
+                                        trigger_value = alarm.get("TRIGGER")
+                                        #_dt = event.get("DTSTART").dt + trigger_value.dt
+                                        _dt = _ical.start + trigger_value.dt
+                                        _alarms_obj.append({
+                                            'description': alarm.get("DESCRIPTION"),
+                                            'trigger': _dt
+                                        })
+                            _events_obj.append({
+                                **_evnt,
+                                'summary': _ical.summary,
+                                'start': _ical.start,
+                                'alarms': _alarms_obj
+                            })
+                        except Exception as _err:# pylint: disable=broad-exception-caught
+                            print(2, _evnt.get('task_id'), str(_err))
+                            _events_obj.append({
+                                **_evnt,
+                                'success': False,
+                                'msg': str(_err),
+                                'summary': None,
+                                'start': None,
+                                'alarms': []
+                            })
+                except Exception as _err:# pylint: disable=broad-exception-caught
+                    print(1, _evnt.get('task_id'), str(_err))
+                    _events_obj.append({
+                        **_evnt,
+                        'success': False,
+                        'msg': str(_err),
+                        'summary': None,
+                        'start': None,
+                        'alarms': []
+                    })
+            return {'success': True, 'msg': self.i18n('success'), 'data': _events_obj}
         except Exception as _err:# pylint: disable=broad-exception-caught
             *_, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]

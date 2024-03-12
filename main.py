@@ -18,6 +18,7 @@ import importlib
 import re
 from typing import Optional, List, Union
 import uvicorn
+from uvicorn.config import LOGGING_CONFIG
 import yaml
 
 import i18n
@@ -97,8 +98,8 @@ try:
     os.stat(f'{os.getcwd()}/{conf.get("UPLOAD")}')
 except Exception as _err:# pylint: disable=broad-exception-caught
     os.mkdir(f'{os.getcwd()}/{conf.get("UPLOAD")}')
-app.mount('/assets', StaticFiles(directory = conf.get('STATIC')), name = 'static')
 app.mount('/static', StaticFiles(directory = conf.get('STATIC')), name = 'static')
+app.mount('/assets', StaticFiles(directory = conf.get('ASSETS')), name = 'static')
 app.mount('/uploads', StaticFiles(directory = conf.get('UPLOAD')), name = 'static')
 
 # VERIFY TOKEN
@@ -245,7 +246,7 @@ async def upload_file(
         }
 # SAVE LOGS
 async def create_log(req, _method, _conf, db, params, res, log): #pylint: disable=unused-argument
-    '''CREATING LOGS'''
+    '''CREATE LOGS'''
     try:
         to_ignore = _conf['REQUEST_LOG'].get('ACTIONS_TO_IGNORE')
         # print(to_ignore)
@@ -346,7 +347,7 @@ async def dyn_api(
                 if verify.get('success') is False:
                     return verify
                 res = await login.alter_pass()
-            elif _method in ['chk_token', 'chk_session', 'chkToken', 'chkSession']:
+            elif _method in ['chk_token', 'chk_session', 'chkToken', 'chkSession', 'verify_token', 'verifyToken']:
                 return verify
             else:
                 res = {
@@ -459,6 +460,7 @@ async def websocket_endpoint(
 if __name__ == '__main__':
     #print('CONFIG:', conf)
     try:
+        LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s [%(name)s] %(levelprefix)s %(message)s"
         uvicorn.run('main:app', host = '0.0.0.0', port = conf.get('PORT'), log_level = 'info', reload = True)
     except Exception as _err:# pylint: disable=broad-exception-caught
         print(str(_err))

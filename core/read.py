@@ -52,7 +52,7 @@ class Read:
             # ROLE TABLE ACCESS
             permissions = self.params.get('permissions')
             if user.get('role_id') != 1:
-                # print(permissions)    
+                # print(permissions)
                 crud_aciton = 'read'
                 _chk = self.check_table_access(_table, permissions, crud_aciton)
                 if not _chk:
@@ -60,6 +60,7 @@ class Read:
                 elif _chk.get('success') is False:
                     return _chk
             engine = self.db.get_engine()
+            #print(engine.url, self.params.get('app'))
             inspector = self.db.get_inspector(engine)
             metadata = self.db.get_metadata(engine)
             tbl = Table(_table, metadata, autoload_with = engine)
@@ -75,12 +76,14 @@ class Read:
                     if _table in self.params['row_level_tables']:
                         _tables_to_check_row_level.append(_table)
                     for ref_field in fks:
-                        _tables_to_check_row_level.append(fks[ref_field].get('referred_table'))
-                        _rls_fk_table_ref[fks[ref_field].get('referred_table')] = fks[ref_field]               
+                        if fks[ref_field].get('referred_table') in self.params['row_level_tables']:
+                            _tables_to_check_row_level.append(fks[ref_field].get('referred_table'))
+                        _rls_fk_table_ref[fks[ref_field].get('referred_table')] = fks[ref_field]
+                # print(self.params['row_level_tables'], '_tables_to_check_row_level:', _tables_to_check_row_level)          
                 if len(_tables_to_check_row_level) > 0:
                     _access = Access(self.conf, self.params, self.db, self.i18n)
                     _row_level_access = await _access.row_level_access(tables = _tables_to_check_row_level)
-                #print('_row_level_access:', _row_level_access)
+                print('_row_level_access:', _row_level_access)
             fields = list(map(lambda field: field.get('name'), inspector.get_columns(_table)))
             flds = [tbl]
             _joins = tbl
@@ -211,27 +214,56 @@ class Read:
                         elif fil.get('cond').lower() in ['is true', 'is false', 'is null', 'is not null']:
                             sql = sql.where(text(f"""{tbl.c[fil.get('field')]} {fil.get('cond')}"""))
             # TEXT SEARCH
+            _split_pattern = re.compile(r'\||\;')
+            _apply_patt_only = self.params['data'].get('apply_patt_only')
+            #print(_apply_patt_only)
             if self.params['data'].get('pattern'):
                 aux = []
-                key = f"%{self.params['data'].get('pattern')}%"
-                key2 = f"{self.params['data'].get('pattern')}"
-                if self.params['data'].get('pattern').find('%') != -1:
-                    key = f"{self.params['data'].get('pattern')}"    
-                for fil in fields:
-                    if fil == pk:
-                        continue
-                    elif fks.get(fil):
-                        continue
-                    aux.append(tbl.c[fil].like(key))
-                    if engine.name in ['sqlite']:
-                        pass
-                        # aux.append(text(f'"{_table}"."{fil}" REGEXP \'{text(key2)}\''))
-                for fk in fks:
-                    try:
-                        aux.append(fks[fk]['fk_table'].c[fks[fk]['referred_columns_desc']].like(key))
-                    except Exception as __err:
-                        pass   
-                sql = sql.where(or_(*aux))
+                _skip = False
+                if not _apply_patt_only:
+                    pass
+                elif not isinstance(_apply_patt_only, list):
+                    pass
+                elif _table not in _apply_patt_only:
+                    _skip = True
+                    #print('_apply_patt_only:', _table)
+                #print(_skip, _table)
+                if _skip is False:
+                    key = f"%{self.params['data'].get('pattern')}%"
+                    key2 = f"{self.params['data'].get('pattern')}"
+                    _splited_keys = re.split(_split_pattern, key2)
+                    #print(_table, key, key2, _splited_keys)
+                    if self.params['data'].get('pattern').find('%') != -1:
+                        key = f"{self.params['data'].get('pattern')}"    
+                    for fil in fields:
+                        if fil == pk:
+                            continue
+                        elif fks.get(fil):
+                            continue
+                        if len(_splited_keys) > 1:
+                            for k in _splited_keys:
+                                _key = k.strip()
+                                if _key.find('%') == -1:
+                                    _key = f'%{_key}%'
+                                aux.append(tbl.c[fil].like(_key))
+                        else:
+                            aux.append(tbl.c[fil].like(key))
+                            if engine.name in ['sqlite']:
+                                pass
+                                # aux.append(text(f'"{_table}"."{fil}" REGEXP \'{text(key2)}\''))
+                    for fk in fks:
+                        try:
+                            if len(_splited_keys) > 1:
+                                for k in _splited_keys:
+                                    _key = k.strip()
+                                    if _key.find('%') == -1:
+                                        _key = f'%{_key}%'
+                                aux.append(tbl.c[fil].like(_key))
+                            else:                            
+                                aux.append(fks[fk]['fk_table'].c[fks[fk]['referred_columns_desc']].like(key))
+                        except Exception as __err:
+                            pass   
+                    sql = sql.where(or_(*aux))
             # ROW LEVEL ACCESS
             msg = ''
             if user.get('role_id') != 1:
@@ -242,7 +274,7 @@ class Read:
                         _row_ids = []
                         if _row_level_access.get(_rls_table):
                             filtered_read_access = filter (
-                                lambda rls: rls.get('read') == True,
+                                lambda rls: rls.get('read') is True,
                                 _row_level_access.get(_rls_table)
                             )
                             _row_ids = list(
@@ -300,7 +332,7 @@ class Read:
                 pass
             else:
                 sql = sql.limit(limit).offset(offset)
-            #print(2, sql)#, sql_total)
+            # print(2, sql)#, sql_total)
             # EXECUTE
             data = []
             total = 0

@@ -40,6 +40,16 @@ class DB:
                 db_conf = self.params.get('db')
             else:
                 db_conf['database'] = self.params.get('db')
+        elif self.params.get('app', {}).get('db'):
+            if isinstance(self.params['app'].get('db'), dict):
+                db_conf = self.params['app'].get('db')
+            else:
+                db_conf['database'] = self.params['app'].get('db')
+        elif self.params.get('app', {}).get('database'):
+            if isinstance(self.params['app'].get('database'), dict):
+                db_conf = self.params['app'].get('database')
+            else:
+                db_conf['database'] = self.params['app'].get('database')
         if isinstance(db_conf, dict):
             _patt = re.compile(r'@ENV\..+')
             for _key in db_conf:
@@ -50,17 +60,6 @@ class DB:
                         db_conf[_key] = os.environ.get(_env)
                     except Exception as _err:# pylint: disable=broad-exception-caught
                         pass
-        elif self.params.get('app'):
-            if self.params['app'].get('db'):
-                if isinstance(self.params['app'].get('db'), dict):
-                    db_conf = self.params['app'].get('db')
-                else:
-                    db_conf['database'] = self.params['app'].get('db')
-            elif self.params['app'].get('database'):
-                if isinstance(self.params['app'].get('database'), dict):
-                    db_conf = self.params['app'].get('database')
-                else:
-                    db_conf['database'] = self.params['app'].get('database')
         connect_args = {}
         _db_basename, _db_ext = os.path.splitext(db_conf['database'])
         if db_conf['drivername'] == 'duckdb' or _db_ext in ['.duckdb']:
@@ -105,9 +104,8 @@ class DB:
             url = URL.create(**db_conf)
         # print(db_conf)
         engine = create_engine(url, echo = self.conf.get('DB_LOG'), connect_args = connect_args)
-        # print(engine.url)
         # CREATE THE DB IF NOT EXISTS
-        if db_conf.get('drivername') != 'sqlite':
+        if db_conf.get('drivername') not in ['sqlite', 'duckdb']:
             if not database_exists(engine.url):
                 create_database(engine.url)
         if db_conf['drivername'] == 'sqlite':
@@ -117,8 +115,8 @@ class DB:
                 conn.execute(text('PRAGMA secure_delete = ON'))
                 #cache_size = -500 * 1024
                 cache_size = 2 * 1024 * 1024
-                conn.execute(text('PRAGMA cache_size = {}'.format(-1 * cache_size)))
-                conn.execute(text('PRAGMA PAGE_SIZE = {}'.format(cache_size)))
+                conn.execute(text(f'PRAGMA cache_size = {(-1 * cache_size)}'))
+                conn.execute(text(f'PRAGMA PAGE_SIZE = {cache_size}'))
                 # conn.execute(text('PRAGMA mmap_size  = {}'.format(500 * 1024)))
                 conn.execute(text('PRAGMA synchronous = 0'))
                 conn.execute(text('PRAGMA TEMP_STORE  = 2'))

@@ -6,6 +6,8 @@
 # pylint: disable=unused-import
 # pylint: disable=invalid-name
 # pylint: disable=trailing-whitespace
+# pylint: disable=broad-exception-caught
+import tempfile
 import smtplib
 import ssl
 from email.mime.multipart import MIMEMultipart
@@ -20,6 +22,10 @@ from icalendar import Calendar, Event
 import os
 import sys
 from dateutil import parser
+try:
+    import win32com.client
+except Exception as _err:
+    win32com = None
 
 class Mail:
     '''mail'''
@@ -147,7 +153,11 @@ class Mail:
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             print('DEBUG INF: ', str(_err), fname, exc_tb.tb_lineno)
             return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
-        
+    async def smtp(self):
+        'smtp send mail'
+        if not self.params.get('mail') and self.params['data'].get('mail'):
+            self.params['mail'] = self.params['data'].get('mail')
+        return await self.smtp_send()    
     async def send(self):
         'smtp send mail'
         if not self.params.get('mail') and self.params['data'].get('mail'):
@@ -216,6 +226,86 @@ class Mail:
             *_, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             print('DEBUG INF: ', str(_err), fname, exc_tb.tb_lineno)
+            return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
+    async def outlook(self):
+        'outlook send mail'
+        try:
+            if not self.params.get('mail') and self.params['data'].get('mail'):
+                self.params['mail'] = self.params['data'].get('mail')
+            _mail = self.params['mail']
+            # {to: [], cc: [], subject: '', body: '', attachments: [], tmp: true, tmp2: false, full_path: null, att_str: null}
+            obj = win32com.client.Dispatch("Outlook.Application")
+            outlook = obj.CreateItem(0)
+            outlook.To = ';'.join(_mail.get('to')) if isinstance(_mail.get('to'), list) else _mail.get('to')
+            outlook.CC = ';'.join(_mail.get('cc')) if isinstance(_mail.get('cc'), list) else _mail.get('cc')
+            outlook.Subject = _mail.get('subject')
+            outlook.Body = _mail.get('body')
+            _path = f'{os.getcwd()}/{self.conf.get("UPLOAD")}'
+            if _mail.get('tmp2') is True:
+                _path = tempfile.gettempdir()
+            elif _mail.get('tmp') is True:
+                _path = f'{_path}/tmp'
+            if not _mail.get('attachments'):
+                pass
+            elif isinstance(_mail.get('attachments'), list):
+                for att in _mail.get('attachments'):
+                    outlook.Attachments.Add(f'{_path}/{att}', Type = 1, DisplayName = att)
+            else:
+                if not os.path.exists(f'{_path}/{_mail.get("attachments")}') and _mail.get('fname') and _mail.get('att_str'):
+                    fname = _mail.get('fname')
+                    _file = open(f'{_path}/{fname}', mode = 'w', encoding = 'utf-8')
+                    _file.write(_mail.get('attachments'))
+                    _file.close()
+                    outlook.Attachments.Add(f'{_path}/{fname}', Type = 1, DisplayName = _mail.get('attachments'))
+                else:       
+                    outlook.Attachments.Add(f'{_path}/{_mail.get("attachments")}', Type = 1, DisplayName = _mail.get('attachments'))
+            outlook.Send()
+            return  {'success': True, 'msg': self.i18n('success')}
+        except Exception as _err:
+            *_, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print('DEBUG INF OUTLLOK: ', str(_err), fname, exc_tb.tb_lineno)
+            return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
+    async def outlook_invite(self):
+        'outlook send invite'
+        try:
+            if not self.params.get('mail') and self.params['data'].get('mail'):
+                self.params['mail'] = self.params['data'].get('mail')
+            _mail = self.params['mail']
+            obj = win32com.client.Dispatch("Outlook.Application")
+            outlook = obj.CreateItem(1)   # 1 represents olAppointmentItem (Outlook Appointment)
+            outlook.Subject = _mail.get('subject')
+            outlook.Body = _mail.get('body')
+            outlook.MeetingStatus = 1  # 1 represents olMeeting (Outlook Meeting)
+            #outlook.Import(f'{os.getcwd()}/invite.ics', 2)  # 2 represents olICal (Outlook iCalendar Appointment)
+            # Add attendees
+            for attendee in _mail.get('to'):
+                outlook.Recipients.Add(attendee)
+            _path = f'{os.getcwd()}/{self.conf.get("UPLOAD")}'
+            if _mail.get('tmp2') is True:
+                _path = tempfile.gettempdir()
+            elif _mail.get('tmp') is True:
+                _path = f'{_path}/tmp'
+            if not _mail.get('attachments'):
+                pass
+            elif isinstance(_mail.get('attachments'), list):
+                for att in _mail.get('attachments'):
+                    outlook.Attachments.Add(f'{_path}/{att}', Type = 1, DisplayName = att)
+            else:
+                if not os.path.exists(f'{_path}/{_mail.get("attachments")}') and _mail.get('fname') and _mail.get('att_str'):
+                    fname = _mail.get('fname')
+                    _file = open(f'{_path}/{fname}', mode = 'w', encoding = 'utf-8')
+                    _file.write(_mail.get('attachments'))
+                    _file.close()
+                    outlook.Attachments.Add(f'{_path}/{fname}', Type = 1, DisplayName = _mail.get('attachments'))
+                else:       
+                    outlook.Attachments.Add(f'{_path}/{_mail.get("attachments")}', Type = 1, DisplayName = _mail.get('attachments'))
+            outlook.Send()
+            return  {'success': True, 'msg': self.i18n('success')}
+        except Exception as _err:
+            *_, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print('DEBUG INF OUTLLOK: ', str(_err), fname, exc_tb.tb_lineno)
             return {'success': False, 'msg': self.i18n('unexpected-error', err = str(_err))}
             
     

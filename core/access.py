@@ -1,3 +1,14 @@
+# pylint: disable=unused-variable
+# pylint: disable=line-too-long
+# pylint: disable=wrong-import-order
+# pylint: disable=broad-exception-caught
+# pylint: disable=unused-import
+# pylint: disable=invalid-name
+# pylint: disable=trailing-whitespace
+# pylint: disable=not-callable
+# pylint: disable=singleton-comparison
+# pylint: disable=broad-exception-caught
+# pylint: disable=bare-except
 '''Manage the access to table and rows'''
 import os
 import sys
@@ -32,28 +43,28 @@ class Access:
                 admin_db = DB(self.conf, {})
             aux_new_db = ''
             if self.params.get('db'):
-                if type(self.params.get('db')) == dict:
+                if isinstance(self.params.get('db'), dict):
                     aux_new_db = self.params['db'].get('database')
-                elif type(self.params.get('db')) == str:
+                elif isinstance(self.params.get('db'), str):
                     aux_new_db = self.params.get('db')
             if self.params.get('database'):
-                if type(self.params.get('database')) == dict:
+                if isinstance(self.params.get('database'), dict):
                     aux_new_db = self.params['database'].get('database')
                 else:
                     aux_new_db = self.params.get('database')
             elif self.params.get('db'):
-                if type(self.params.get('db')) == dict:
+                if isinstance(self.params.get('db'), dict):
                     aux_new_db = self.params['db'].get('database')
                 else:
                     aux_new_db = self.params.get('db')
             elif self.params.get('app'):
                 if self.params['app'].get('db'):
-                    if type(self.params['app'].get('db')) == dict:
+                    if isinstance(self.params['app'].get('db'), dict):
                         aux_new_db = self.params['app']['db'].get('database')
                     else:
                         aux_new_db = self.params['app'].get('db')
                 elif self.params['app'].get('database'):
-                    if type(self.params['app'].get('database')) == dict:
+                    if isinstance(self.params['app'].get('database'), dict):
                         aux_new_db = self.params['app']['database'].get('database')
                     else:
                         aux_new_db = self.params['app'].get('database')
@@ -87,7 +98,7 @@ class Access:
         except Exception as _err:# pylint: disable=broad-exception-caught
             try:
                 engine.dispose()
-            except Exception as _err2:
+            except Exception as _err2:# pylint: disable=broad-exception-caught
                 pass
             *_, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -106,20 +117,20 @@ class Access:
                 if not self.params.get('data'):
                     pass
                 elif self.params['data'].get('tables'):
-                    if type(self.params['data'].get('tables')) == list:
+                    if isinstance(self.params['data'].get('tables'), list):
                         tables = copy.deepcopy(self.params['data'].get('tables'))
                     else:
                         tables = [self.params['data'].get('tables')]
                 elif self.params['data'].get('table'):
-                    if type(self.params['data'].get('table')) == list:
+                    if isinstance(self.params['data'].get('table'), list):
                         tables = copy.deepcopy(self.params['data'].get('table'))
                     else:
                         tables = [self.params['data'].get('table')]
-            elif type(tables) == str:
+            elif isinstance(tables, str):
                 tables = [tables]
-            elif type(tables) == dict and len(tables) > 0:
+            elif isinstance(tables, dict) and len(tables) > 0:
                 pass
-            if not tables or len(tables) == 0: 
+            if not tables or len(tables) == 0:
                 tables = inspector.get_table_names()
             with engine.connect() as conn:
                 try:
@@ -129,10 +140,10 @@ class Access:
                         _admin_engine = admin_db.get_engine()
                         _admin_metadata = admin_db.get_metadata(_admin_engine)
                     else:
-                        admin_db = self.db                
+                        admin_db = self.db
                     _admin_conn = _admin_engine.connect()
                     # USER ROLES
-                    roles = [user.get('role_id')]               
+                    roles = [user.get('role_id')]
                     # print('table_access:', tables, 'roles:', roles)
                     tbl = Table('user_role', _admin_metadata, autoload_with = _admin_engine)
                     join_tbl = Table('role', _admin_metadata, autoload_with = _admin_engine)
@@ -226,18 +237,18 @@ class Access:
                 if not self.params.get('data'):
                     pass
                 elif self.params['data'].get('tables'):
-                    if type(self.params['data'].get('tables')) == list:
+                    if isinstance(self.params['data'].get('tables'), list):
                         tables = copy.deepcopy(self.params['data'].get('tables'))
                     else:
                         tables = [self.params['data'].get('tables')]
                 elif self.params['data'].get('table'):
-                    if type(self.params['data'].get('table')) == list:
+                    if isinstance(self.params['data'].get('table'), list):
                         tables = copy.deepcopy(self.params['data'].get('table'))
                     else:
                         tables = [self.params['data'].get('table')]
-            elif type(tables) == str:
+            elif isinstance(tables, str):
                 tables = [tables]
-            elif type(tables) == dict and len(tables) > 0:
+            elif isinstance(tables, dict) and len(tables) > 0:
                 pass
             if not tables or len(tables) == 0:
                 tables = []#inspector.get_table_names()
@@ -247,9 +258,9 @@ class Access:
                     _admin_metadata = metadata
                     if admin_db:
                         _admin_engine = admin_db.get_engine()
-                        _admin_metadata = admin_db.get_metadata(_admin_engine)    
+                        _admin_metadata = admin_db.get_metadata(_admin_engine)
                     else:
-                        admin_db = self.db                
+                        admin_db = self.db
                     _admin_conn = _admin_engine.connect()
                     # USER ROLES
                     roles = [user.get('role_id')]                    
@@ -301,14 +312,14 @@ class Access:
                     _row_id = []
                     if not row_id:
                         pass
-                    elif type(row_id) == list:
+                    elif isinstance(row_id, list):
                         _row_id = row_id
                     else:
                         _row_id = [ row_id ]
                     if len(_row_id) == 0:
                         if not self.params['data'].get('row_id'):
                             pass
-                        elif type(self.params['data'].get('row_id')) == list:
+                        elif isinstance(self.params['data'].get('row_id'), list):
                             _row_id = self.params['data'].get('row_id')
                         else:
                             _row_id = [ self.params['data'].get('row_id') ]
@@ -383,9 +394,9 @@ class Access:
                     _admin_metadata = metadata
                     if admin_db:
                         _admin_engine = admin_db.get_engine()
-                        _admin_metadata = admin_db.get_metadata(_admin_engine)    
+                        _admin_metadata = admin_db.get_metadata(_admin_engine)
                     else:
-                        admin_db = self.db                
+                        admin_db = self.db
                     _admin_conn = _admin_engine.connect()
                     tbl = Table('menu_table', _admin_metadata, autoload_with = _admin_engine)
                     join_tbl = Table('table', _admin_metadata, autoload_with = _admin_engine)
