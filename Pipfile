@@ -44,8 +44,8 @@ py-rust-odbc-csv = "*"
 icalevents = "*"
 ics = "*"
 # WINDOWS
-pywin32 = "*"
-pythoncom = "*"
+#pywin32 = "*"
+#pythoncom = "*"
 
 [dev-packages]
 
