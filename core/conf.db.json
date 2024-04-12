@@ -1,0 +1,112 @@
+[
+    {
+        "type": "db",
+        "params": {
+            "host": "127.0.0.1",
+            "drivername": "mysql+pymysql",
+            "port": 3306,
+            "username": "@ENV.MYSQL_USER",
+            "password": "@ENV.MYSQL_PASS",
+            "database": "SA_v21"
+        },
+        "query":"SELECT * FROM `TBLContrato` WHERE `DataContrato` < '{YYYY-MM-DD}'"
+    },
+    {
+        "type": "db",
+        "params": {
+            "host": "172.21.11.1",
+            "drivername": "{iSeries Access ODBC Driver}",
+            "password": "@ENV.PASS",
+            "username": "@ENV.USERNAME",
+            "odbc_url": "Driver={drivername};System={host};Uid={username};Pwd={password}",
+            "odbc_dbapi": "db2"
+        },
+        "query":"SELECT * FROM \"TABLE\" WHERE \"DATE\" = '{YYYYMMDD}'"
+    },
+    {
+        "type": "odbc-csv-duckdb",
+        "params": {
+            "host": "172.21.11.1",
+            "drivername": "{iSeries Access ODBC Driver}",
+            "password": "@ENV.DB2_PASS",
+            "username": "@ENV.USERNAME",
+            "odbc_url": "Driver={drivername};System={host};Uid={username};Pwd={password}",
+            "odbc_dbapi": "db2"
+        },
+        "query":"SELECT * FROM \"TABLE\" WHERE \"DATE\" = '{YYYYMMDD}'",
+        "duckdb": {
+            "valid": [
+                {
+                    "sql": "SELECT DISTINCT DATE_FIELD FROM '<filename>' WHERE DATE_FIELD = '{YYYYMMDD}' LIMIT 10",
+                    "rule": "throw_if_empty",
+                    "msg": "The DATE_FIELD in the '<filename>' is not YYYYMMDD!"
+                },
+                {
+                    "sql": "SELECT DATE_FIELD FROM TBL WHERE DATE_FIELD = '{YYYYMMDD}' LIMIT 10",
+                    "rule": "throw_if_not_empty",
+                    "msg": "The date YYYYMMDD already exists, check the file or clean the data first!"
+                }
+            ],
+            "sql": "CREATE OR REPLACE TABLE TBL AS SELECT * FROM '<filename>'",
+            "_sql": "INSERT INTO TBL AS SELECT * FROM db_scaner('<filename>', 'table_name')",
+            "__sql": "CREATE OR REPLACE TABLE TBL AS SELECT * FROM db_scan('<conn_string>', 'schema', 'table');"
+        }
+    },
+    {
+        "type": "duckdb",
+        "duckdb": {
+            "extentions": ["sqlite", "postgres", "httpfs"],
+            "valid": [
+                {
+                    "sql": "SELECT DISTINCT DATE_FIELD FROM '<filename>' WHERE DATE_FIELD = '{YYYYMMDD}' LIMIT 10",
+                    "rule": "throw_if_not_empty",
+                    "msg": "The DATE_FIELD in the '<filename>' is not YYYYMMDD!"
+                },
+                {
+                    "sql": "SELECT DATE_FIELD FROM TBL WHERE DATE_FIELD = '{YYYYMMDD}' LIMIT 10",
+                    "rule": "throw_if_empty",
+                    "msg": "The date YYYYMMDD already exists, check the file or clean the data first!"
+                }
+            ],
+            "pragmas_config_sql": [
+                "SET s3_region='auto'",
+                "..."
+            ],
+            "sql": "CREATE OR REPLACE TABLE TBL AS SELECT * FROM '<filename>'",
+            "_sql": "INSERT INTO TBL AS SELECT * FROM db_scaner('<filename>', 'table_name')",
+            "__sql": "CREATE OR REPLACE TABLE TBL AS SELECT * FROM db_scan('<conn_string>', 'schema', 'table');"
+        }
+    },
+    {
+        "type": "file-to-duckdb",
+        "duckdb": {
+          "extentions": ["spatial"],
+          "valid": [
+            {
+              "sql": "SELECT \"file_ref\" FROM \"<table>\" WHERE \"file_ref\" = '{YYYY-MM-DD}' LIMIT 10",
+              "rule": "throw_if_not_empty",
+              "msg": "A data DD/MM/YYYY já existe na tabela \"<table>\", certifique que é o pretendido ou limpe o destino primeiro!"
+            }
+          ],
+          "sql": "INSERT INTO \"<table>\" SELECT *, '{YYYY-MM-DD}' AS \"file_ref\" FROM ST_READ('<filename>')"
+        }
+    },
+    {
+        "type": "duckdb",
+        "decs": "works for every data base that suporte ATTACH (at the moment self, sqlite, postgres and mysql)",
+        "duckdb": {
+            "extentions": [],
+            "pragmas_config_sql_start": ["ATTACH 'database/<db>.duckdb' AS <db> (READ_ONLY)"],
+            "pragmas_config_sql_end": ["DETACH <db>"],
+            "valid": [
+                {
+                "sql": "SELECT \"DATE\" FROM \"main\".\"<table>\" WHERE \"DATE\" = '{YYYYMMDD}' LIMIT 10",
+                "rule": "throw_if_not_empty",
+                "msg": "A data DD/MM/YYYY já existe na tabela \"<table>\", certifique que é o pretendido ou limpe o destino primeiro!"
+                }
+            ],
+            "sql": "INSERT INTO \"main\".\"<table>\" SELECT * FROM \"<db>\".\"<table>\" WHERE \"DATE\" = {YYYYMMDD}",
+            "sql_create_if_not_exists": "CREATE TABLE \"main\".\"<table>\" AS SELECT * FROM \"<db>\".\"<table>\" WHERE \"DATE\" = {YYYYMMDD}"
+        }
+    }
+]

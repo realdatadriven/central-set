@@ -1,0 +1,53 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+fastapi = "*"
+uvicorn = {extras = ["standard"] }
+python-multipart = "*"
+python-i18n = {extras = ["yaml"] }
+pyyaml = "*"
+passlib = {extras = ["bcrypt"] }
+python-jose = {extras = ["cryptography"] }
+sqlalchemy = "*"
+sqlalchemy-utils = "*"
+pandas = "*"
+numpy = "*"
+pyarrow = "*"
+openpyxl = "*"
+xlrd = "*"
+pyxlsb = "*"
+werkzeug = "*"
+pymysql = "*"
+pyodbc = "*"
+psycopg = "*"
+requests = "*"
+python-dotenv = "*"
+sqlalchemy_rqlite = "*"
+httpx = "*"
+ibm-db-sa = "*"
+query-doc = "*"
+pdfkit = "*"
+jinja2 = "*"
+icalendar = "*"
+duckdb-engine = "*"
+duckdb = "==0.10.0"
+html5lib = "*"
+lxml = "*"
+beautifulsoup4 = "*"
+fastparquet = "*"
+#sharepy = "*"
+fsspec = "*"
+py-rust-odbc-csv = "*"
+icalevents = "*"
+ics = "*"
+# WINDOWS
+#pywin32 = "*"
+#pythoncom = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.11"

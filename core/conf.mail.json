@@ -1,0 +1,58 @@
+{
+    "type": "outlook_mail",
+    "params": { 
+        "main_folder": ["user@domain.com"],
+        "folders": ["A receber", "Itens enviados", "inbox"],
+        "patt_title_match": "Title.+\\d{4}\\.\\d{2}\\.\\d{2}",
+        "patt_title_exclude": "Não.+entregue.+|Nao.+entregue.+|Not.+delivery",
+        "fields": [
+            {
+                "name": "date_ref",
+                "type": "date",
+                "patt": "\\d{2}\\.\\d{2}\\.\\d{4}",
+                "where": "subject",
+                "format": "%d.%m.%Y"
+            },
+            {
+                "name": "err_desc",
+                "type": "text",
+                "patt": "Descrição do erro:.+",
+                "where": "body",
+                "replace": ["Descrição do erro:", ""]
+            },
+            {
+                "name": "err_impact",
+                "type": "text",
+                "patt": "Impacto do erro:.+",
+                "where": "body",
+                "replace": ["Impacto do erro:", ""]
+            },
+            {
+                "name": "dt_detect",
+                "type": "date",
+                "patt": "Data de Detenção:.+",
+                "where": "body",
+                "replace": ["Data de Detenção:", ""],
+                "patt2": "\\d{2}/\\d{2}/\\d{4}",
+                "format": "%d/%m/%Y"
+            },
+            {
+                "name": "fix_plan",
+                "type": "text",
+                "patt": "Plano de Correção:.+",
+                "where": "body",
+                "replace": ["Plano de Correção:", ""]
+            },
+            {
+                "name": "dt_corr_prod",
+                "type": "date",
+                "patt": "Data compromisso para ter a correção em Produção:.+",
+                "where": "body",
+                "replace": ["Data compromisso para ter a correção em Produção:", ""],
+                "patt2": "\\d{2}/\\d{2}/\\d{4}",
+                "format": "%d/%m/%Y"
+            }
+        ]
+        
+    }
+}
